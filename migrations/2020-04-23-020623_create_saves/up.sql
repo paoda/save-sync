@@ -4,6 +4,7 @@ CREATE TABLE saves (
   friendly_name TEXT NOT NULL,
   save_path TEXT NOT NULL,
   backup_path TEXT NOT NULL,
+  uuid CHAR(36) NOT NULL,
   user_id INTEGER NOT NULL,
   created_at DATETIME NOT NULL,
   modified_at DATETIME NOT NULL,
