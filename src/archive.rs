@@ -169,7 +169,7 @@ pub mod query {
         }
 
         pub fn with_friendly_name(mut self, name: &str) -> SaveQuery {
-            self.friendly_name = Some(name.to_owned()); // FIXME: Memory?s
+            self.friendly_name = Some(name.to_string()); // FIXME: Memory?s
             self
         }
 
@@ -235,7 +235,7 @@ pub mod query {
         }
 
         pub fn with_username(mut self, name: &str) -> UserQuery {
-            self.username = Some(name.to_owned()); // FIXME: Memory?
+            self.username = Some(name.to_string()); // FIXME: Memory?
             self
         }
     }
