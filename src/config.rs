@@ -10,7 +10,7 @@ lazy_static! {
     static ref CONFIG: RwLock<Config> = RwLock::new(Config::default());
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub db_location: PathBuf,
     pub data_location: PathBuf,
@@ -33,16 +33,16 @@ impl Default for Config {
 }
 
 impl Config {
-    fn update(config: Config) {
+    pub fn update(config: Config) {
         let mut w = CONFIG.write().unwrap();
         *w = config;
     }
 
-    fn static_config() -> RwLockReadGuard<'static, Config> {
+    pub fn static_config() -> RwLockReadGuard<'static, Config> {
         CONFIG.read().unwrap()
     }
 
-    fn clone_config() -> Config {
+    pub fn clone_config() -> Config {
         (*CONFIG.read().unwrap()).clone()
     }
 
@@ -96,7 +96,7 @@ impl ConfigManager {
             let mut toml_buffer = vec![];
             buf_reader.read_to_end(&mut toml_buffer).unwrap();
 
-            let config = toml::from_slice::<Config>(&toml_buffer).unwrap();
+            let config: Config = toml::from_slice(&toml_buffer).unwrap();
 
             Config::update(config);
         }
@@ -108,7 +108,7 @@ impl ConfigManager {
         let mut toml_buffer = vec![];
         buf_reader.read_to_end(&mut toml_buffer).unwrap();
 
-        let config = toml::from_slice::<Config>(&toml_buffer).unwrap();
+        let config: Config = toml::from_slice(&toml_buffer).unwrap();
 
         Config::update(config)
     }
@@ -133,6 +133,8 @@ impl ConfigManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs::File;
+    use std::io::{Read, Write};
     use std::path::PathBuf;
 
     #[test]
@@ -141,18 +143,115 @@ mod tests {
         let expected_xxhash_seed = 12345;
         let expected_db_location = PathBuf::from("new_db_location");
 
-        let new_config = Config {
+        let expected = Config {
             data_location: expected_data_location.clone(),
             xxhash_seed: expected_xxhash_seed,
             db_location: expected_db_location.clone(),
         };
 
-        Config::update(new_config);
+        Config::update(expected.clone());
 
-        let config = &*Config::static_config();
+        let actual = &*Config::static_config();
 
-        assert_eq!(config.data_location, expected_data_location);
-        assert_eq!(config.xxhash_seed, expected_xxhash_seed);
-        assert_eq!(config.db_location, expected_db_location);
+        assert_eq!(*actual, expected);
+    }
+
+    #[test]
+    pub fn verify_write_to_file() {
+        let test_folder_id = "write_to_file";
+        let tmp_dir = setup_test_dir(test_folder_id);
+
+        let settings_path: PathBuf = [&tmp_dir, &PathBuf::from("settings.toml")].iter().collect();
+
+        let expected_data_location = PathBuf::from("new_data_location");
+        let expected_xxhash_seed = 12345;
+        let expected_db_location = PathBuf::from("new_db_location");
+
+        let expected = Config {
+            data_location: expected_data_location,
+            xxhash_seed: expected_xxhash_seed,
+            db_location: expected_db_location,
+        };
+
+        Config::update(expected.clone());
+        let manager = ConfigManager::new(settings_path.clone());
+        manager.write_to_file();
+
+        let mut file = File::open(manager.config_file_path).unwrap();
+
+        let mut toml_buf = vec![];
+        file.read_to_end(&mut toml_buf).unwrap();
+
+        let actual: Config = toml::from_slice(&toml_buf).unwrap();
+
+        destroy_test_dir(test_folder_id);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn verify_load_from_file() {
+        let test_folder_id = "load_from_file";
+        let tmp_dir = setup_test_dir(test_folder_id);
+
+        let settings_path: PathBuf = [&tmp_dir, &PathBuf::from("settings.toml")].iter().collect();
+        let manager = ConfigManager::new(settings_path.clone());
+        let mut settings = File::create(&settings_path).unwrap();
+
+        let expected_data_location = PathBuf::from("new_data_location");
+        let expected_xxhash_seed = 12345;
+        let expected_db_location = PathBuf::from("new_db_location");
+
+        let expected = Config {
+            data_location: expected_data_location,
+            xxhash_seed: expected_xxhash_seed,
+            db_location: expected_db_location,
+        };
+
+        let toml_str = toml::to_string(&expected).unwrap();
+        settings.write_all(&toml_str.into_bytes()).unwrap();
+
+        manager.load_from_file();
+
+        let actual = &*Config::static_config();
+
+        destroy_test_dir(test_folder_id);
+        assert_eq!(*actual, expected);
+    }
+
+    #[test]
+    fn verify_create_config_file() {
+        let test_folder_id = "create_config";
+        let expected = Config::default();
+        let tmp_dir = setup_test_dir(test_folder_id);
+        let settings_path: PathBuf = [&tmp_dir, &PathBuf::from("settings.toml")].iter().collect();
+
+        ConfigManager::create_config_file(&settings_path);
+        let mut file = File::open(&settings_path).unwrap();
+        let mut toml_string = String::new();
+
+        file.read_to_string(&mut toml_string).unwrap();
+        let actual: Config = toml::from_str(&toml_string).unwrap();
+
+        assert_eq!(actual, expected);
+        destroy_test_dir(test_folder_id);
+    }
+
+    fn setup_test_dir(id: &str) -> PathBuf {
+        use std::fs::create_dir;
+        let test_dir = PathBuf::from(format!("./tmp_dir_config_{}", id));
+
+        if test_dir.exists() {
+            destroy_test_dir(id);
+        }
+
+        create_dir(&test_dir).unwrap();
+        test_dir
+    }
+
+    fn destroy_test_dir(id: &str) {
+        use std::fs::remove_dir_all;
+        let test_dir = PathBuf::from(format!("./tmp_dir_config_{}", id));
+
+        remove_dir_all(test_dir).unwrap();
     }
 }
