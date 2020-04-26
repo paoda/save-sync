@@ -5,8 +5,8 @@ extern crate lazy_static;
 #[macro_use]
 extern crate diesel_migrations;
 
-mod archive;
-mod config;
-mod database;
+pub mod archive;
+pub mod config;
+pub mod database;
 mod models;
 mod schema;
