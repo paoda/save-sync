@@ -1,4 +1,5 @@
 /target
+/tmp_dir*
 /.vscode
 Cargo.lock
 save-sync.db
