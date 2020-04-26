@@ -36,9 +36,9 @@ impl Database {
 
         let path = save.save_path;
         let conn = self.get_conn();
-        let list = saves
+        let list: Vec<Save> = saves
             .filter(save_path.eq(path))
-            .load::<Save>(&conn)
+            .load(&conn)
             .expect("Unable to query database.");
 
         !list.is_empty()
@@ -49,9 +49,9 @@ impl Database {
 
         let path = file.file_path;
         let conn = self.get_conn();
-        let list = files
+        let list: Vec<File> = files
             .filter(file_path.eq(path))
-            .load::<File>(&conn)
+            .load(&conn)
             .expect("Unable to query database.");
 
         !list.is_empty()
@@ -62,9 +62,9 @@ impl Database {
 
         let uname = user.username;
         let conn = self.get_conn();
-        let list = users
+        let list: Vec<User> = users
             .filter(username.eq(uname))
-            .load::<User>(&conn)
+            .load(&conn)
             .expect("Unable to query database.");
 
         !list.is_empty()
@@ -92,20 +92,17 @@ impl Database {
         let mut list: Vec<Save> = vec![];
 
         if let Some(search_id) = query.id {
-            list = saves
-                .filter(id.eq(search_id))
-                .load::<Save>(&conn)
-                .expect(err_msg);
+            list = saves.filter(id.eq(search_id)).load(&conn).expect(err_msg);
         } else if let Some(name) = query.friendly_name {
             list = saves
                 .filter(friendly_name.eq(&name))
-                .load::<Save>(&conn)
+                .load(&conn)
                 .expect(err_msg);
         } else if let Some(path) = query.path {
             let path_str = path.to_str().unwrap();
             list = saves
                 .filter(save_path.eq(path_str))
-                .load::<Save>(&conn)
+                .load(&conn)
                 .expect(err_msg);
         }
 
@@ -126,7 +123,7 @@ impl Database {
         if let Some(search_user_id) = query.user_id {
             list = saves
                 .filter(user_id.eq(search_user_id))
-                .load::<Save>(&conn)
+                .load(&conn)
                 .expect(err_msg);
         }
 
@@ -140,9 +137,7 @@ impl Database {
         use schema::saves::dsl::*;
 
         let conn = self.get_conn();
-        let list = saves
-            .load::<Save>(&conn)
-            .expect("Unable to query database.");
+        let list: Vec<Save> = saves.load(&conn).expect("Unable to query database.");
 
         match list.is_empty() {
             true => None,
@@ -222,20 +217,17 @@ impl Database {
         let mut list: Vec<File> = vec![];
 
         if let Some(search_id) = query.id {
-            list = files
-                .filter(id.eq(search_id))
-                .load::<File>(&conn)
-                .expect(err_msg);
+            list = files.filter(id.eq(search_id)).load(&conn).expect(err_msg);
         } else if let Some(path) = query.path {
             let path_str = path.to_str().unwrap();
             list = files
                 .filter(file_path.eq(path_str))
-                .load::<File>(&conn)
+                .load(&conn)
                 .expect(err_msg);
         } else if let Some(hash) = query.hash {
             list = files
                 .filter(file_hash.eq(&hash))
-                .load::<File>(&conn)
+                .load(&conn)
                 .expect(err_msg);
         }
 
@@ -256,7 +248,7 @@ impl Database {
         if let Some(search_save_id) = query.save_id {
             list = files
                 .filter(save_id.eq(search_save_id))
-                .load::<File>(&conn)
+                .load(&conn)
                 .expect(err_msg);
         }
 
@@ -270,9 +262,7 @@ impl Database {
         use schema::files::dsl::*;
 
         let conn = self.get_conn();
-        let list = files
-            .load::<File>(&conn)
-            .expect("Unable to query database.");
+        let list: Vec<File> = files.load(&conn).expect("Unable to query database.");
 
         match list.is_empty() {
             true => None,
@@ -352,14 +342,11 @@ impl Database {
         let mut list: Vec<User> = vec![];
 
         if let Some(search_id) = query.id {
-            list = users
-                .filter(id.eq(search_id))
-                .load::<User>(&conn)
-                .expect(err_msg);
+            list = users.filter(id.eq(search_id)).load(&conn).expect(err_msg);
         } else if let Some(uname) = query.username {
             list = users
                 .filter(username.eq(&uname))
-                .load::<User>(&conn)
+                .load(&conn)
                 .expect(err_msg)
         }
 
@@ -374,9 +361,7 @@ impl Database {
         use schema::users::dsl::*;
 
         let conn = self.get_conn();
-        let list = users
-            .load::<User>(&conn)
-            .expect("Unable to query database.");
+        let list: Vec<User> = users.load(&conn).expect("Unable to query database.");
 
         match list.is_empty() {
             true => None,
@@ -421,7 +406,7 @@ mod tests {
 
     fn setup_test_dir(id: &str) -> PathBuf {
         use std::fs::create_dir;
-        let test_dir = PathBuf::from(format!("./tmp_dir_database{}", id));
+        let test_dir = PathBuf::from(format!("./tmp_dir_database_{}", id));
 
         if test_dir.exists() {
             destroy_test_dir(id);
@@ -433,7 +418,7 @@ mod tests {
 
     fn destroy_test_dir(id: &str) {
         use std::fs::remove_dir_all;
-        let test_dir = PathBuf::from(format!("./tmp_dir_database{}", id));
+        let test_dir = PathBuf::from(format!("./tmp_dir_database_{}", id));
 
         remove_dir_all(test_dir).unwrap();
     }
