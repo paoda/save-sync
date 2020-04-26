@@ -142,6 +142,7 @@ impl Archive {
 pub mod query {
     use std::path::PathBuf;
 
+    #[derive(Debug, PartialEq, Eq)]
     pub struct SaveQuery {
         pub id: Option<i32>,
         pub friendly_name: Option<String>,
@@ -178,6 +179,8 @@ pub mod query {
             self
         }
     }
+
+    #[derive(Debug, PartialEq, Eq)]
     pub struct FileQuery {
         pub id: Option<i32>,
         pub path: Option<PathBuf>,
@@ -216,6 +219,7 @@ pub mod query {
         }
     }
 
+    #[derive(Debug, PartialEq, Eq)]
     pub struct UserQuery {
         pub id: Option<i32>,
         pub username: Option<String>,
@@ -254,7 +258,7 @@ mod tests {
 
         let actual = Archive::u64_to_byte_vec(num);
 
-        assert_eq!(expected, actual);
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -331,13 +335,7 @@ mod tests {
             user_id: None,
         };
 
-        assert_eq!(actual.id.unwrap(), expected.id.unwrap());
-        assert_eq!(actual.path.unwrap(), expected.path.unwrap());
-        assert_eq!(actual.user_id, expected.user_id);
-        assert_eq!(
-            actual.friendly_name.unwrap(),
-            expected.friendly_name.unwrap()
-        );
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -354,10 +352,7 @@ mod tests {
             save_id: Some(2),
         };
 
-        assert_eq!(actual.id.unwrap(), expected.id.unwrap());
-        assert_eq!(actual.path, expected.path);
-        assert_eq!(actual.hash.unwrap(), expected.hash.unwrap());
-        assert_eq!(actual.save_id.unwrap(), expected.save_id.unwrap());
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -371,8 +366,7 @@ mod tests {
             username: Some(String::from("serious_gamer_1")),
         };
 
-        assert_eq!(actual.id.unwrap(), expected.id.unwrap());
-        assert_eq!(actual.username.unwrap(), expected.username.unwrap());
+        assert_eq!(actual, expected);
     }
 
     fn setup_test_dir(id: &str) -> PathBuf {
