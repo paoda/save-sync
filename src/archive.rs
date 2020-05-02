@@ -95,7 +95,7 @@ impl Archive {
                 break;
             }
 
-            zstd_encoder.write(&chunk).unwrap();
+            zstd_encoder.write_all(&chunk).unwrap();
         }
 
         zstd_encoder.finish().unwrap();
@@ -129,7 +129,7 @@ impl Archive {
                 break;
             }
 
-            target_file.write(&chunk).unwrap();
+            target_file.write_all(&chunk).unwrap();
         }
     }
 
