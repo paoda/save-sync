@@ -42,6 +42,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
+          args: --all
   lints:
     name: Lints
     runs-on: ubuntu-latest
@@ -67,7 +68,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings
+          args: --all -- -D warnings
 
 build_linux_x86_64:
     name: Linux x86_64
