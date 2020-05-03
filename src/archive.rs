@@ -249,6 +249,7 @@ pub mod query {
 mod tests {
     use super::query::*;
     use super::*;
+    use std::fs;
     use std::fs::File;
 
     #[test]
@@ -290,14 +291,64 @@ mod tests {
 
     #[test]
     fn compress_and_decompress_directory() {
-        unimplemented!();
+        use std::io::{Read, Write};
+        let test_folder_id = "compress_dir";
+        let tmp_path = setup_test_dir(test_folder_id);
+
+        let archive_name = "archive.tar.zst";
+        let src_dir: PathBuf = [&tmp_path, &PathBuf::from("test_dir")].iter().collect();
+        let archive_path: PathBuf = [&tmp_path, &PathBuf::from(archive_name)].iter().collect();
+        let copy_dir: PathBuf = [&tmp_path, &PathBuf::from("decompress")].iter().collect();
+
+        // Example Directory
+        fs::create_dir(&src_dir).unwrap();
+
+        let file1_expected = "This file contains some text";
+        let file1_path: PathBuf = [&src_dir, &PathBuf::from("file1.txt")].iter().collect();
+        let mut file1 = File::create(file1_path).unwrap();
+        file1.write_all(file1_expected.as_bytes()).unwrap();
+
+        let src_sub_dir: PathBuf = [&src_dir, &PathBuf::from("sub_dir")].iter().collect();
+        fs::create_dir(&src_sub_dir).unwrap();
+
+        let file2_expected = "This file contains some different text";
+        let file2_path: PathBuf = [&src_sub_dir, &PathBuf::from("file2.txt")].iter().collect();
+        let mut file2 = File::create(file2_path).unwrap();
+        file2.write_all(file2_expected.as_bytes()).unwrap();
+
+        Archive::compress_directory(&src_dir, &archive_path);
+        Archive::decompress_archive(&archive_path, &copy_dir);
+
+        let mut file1_actual = String::new();
+        let mut file2_actual = String::new();
+
+        let copy_src_dir = [&copy_dir, &PathBuf::from("test_dir")].iter().collect();
+        let file1_copy_path: PathBuf = [&copy_src_dir, &PathBuf::from("file1.txt")]
+            .iter()
+            .collect();
+
+        let mut file1 = File::open(file1_copy_path).unwrap();
+        file1.read_to_string(&mut file1_actual).unwrap();
+
+        let copy_sub_dir: PathBuf = [&copy_src_dir, &PathBuf::from("sub_dir")].iter().collect();
+        let file2_copy_path: PathBuf = [&copy_sub_dir, &PathBuf::from("file2.txt")]
+            .iter()
+            .collect();
+
+        let mut file2 = File::open(file2_copy_path).unwrap();
+        file2.read_to_string(&mut file2_actual).unwrap();
+
+        destroy_test_dir(test_folder_id);
+
+        assert_eq!(file1_actual, file1_expected);
+        assert_eq!(file2_actual, file2_expected);
     }
 
     #[test]
     fn compress_and_decompress_file() {
         use std::io::{Read, Write};
 
-        let test_folder_id = "compress";
+        let test_folder_id = "compress_file";
         let tmp_path = setup_test_dir(test_folder_id);
 
         let expected: [u8; 32] = rand::random();
