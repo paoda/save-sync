@@ -390,21 +390,19 @@ mod tests {
     }
 
     fn setup_test_dir(id: &str) -> PathBuf {
-        use std::fs::create_dir;
         let test_dir = PathBuf::from(format!("./tmp_dir_archive_{}", id));
 
         if test_dir.exists() {
             destroy_test_dir(id);
         }
 
-        create_dir(&test_dir).unwrap();
+        fs::create_dir(&test_dir).unwrap();
         test_dir
     }
 
     fn destroy_test_dir(id: &str) {
-        use std::fs::remove_dir_all;
         let test_dir = PathBuf::from(format!("./tmp_dir_archive_{}", id));
 
-        remove_dir_all(test_dir).unwrap();
+        fs::remove_dir_all(test_dir).unwrap();
     }
 }

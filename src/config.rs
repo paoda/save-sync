@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{BufReader, Read, Write};
 use std::path::PathBuf;
-use std::sync::{PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{RwLock, RwLockReadGuard};
 use toml;
 
 lazy_static! {
@@ -133,6 +133,7 @@ impl ConfigManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use std::fs::File;
     use std::io::{Read, Write};
     use std::path::PathBuf;
@@ -237,21 +238,19 @@ mod tests {
     }
 
     fn setup_test_dir(id: &str) -> PathBuf {
-        use std::fs::create_dir;
         let test_dir = PathBuf::from(format!("./tmp_dir_config_{}", id));
 
         if test_dir.exists() {
             destroy_test_dir(id);
         }
 
-        create_dir(&test_dir).unwrap();
+        fs::create_dir(&test_dir).unwrap();
         test_dir
     }
 
     fn destroy_test_dir(id: &str) {
-        use std::fs::remove_dir_all;
         let test_dir = PathBuf::from(format!("./tmp_dir_config_{}", id));
 
-        remove_dir_all(test_dir).unwrap();
+        fs::remove_dir_all(test_dir).unwrap();
     }
 }
