@@ -3,17 +3,170 @@ name: Rust
 on:
   push:
     branches: [ master ]
-  pull_request:
-    branches: [ master ]
 
 jobs:
-  build:
-
+  check:
+    name: Check
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v2
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install stable rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Run cargo check
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install stable rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all
+  lints:
+    name: Lints
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install stable rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy
+      
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all
+      
+      - name: Run cargo clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all -- -D warnings
+
+  build_linux_x86_64:
+    name: Linux x86_64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install stable rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: run cargo build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all --release
+      
+      - name: Strip Binaries
+        run: | 
+          strip target/release/cli
+          strip target/release/server
+
+      - name: Upload Client Artifact
+        uses: actions/upload-artifact@v1
+        with:
+          name: Save Sync CLI Linux x86_64
+          path: target/release/cli
+      
+      - name: Upload Server Artifact
+        uses: actions/upload-artifact@v1
+        with:
+          name: Save Sync Server Linux x86_64
+          path: target/release/server
+
+  build_windows_x86_64:
+    name: Windows x86_64
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install stable rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: run cargo build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all --release
+
+      - name: Upload Client Artifact
+        uses: actions/upload-artifact@v1
+        with:
+          name: Save Sync CLI Windows x86_64
+          path: target/release/cli.exe
+      
+      - name: Upload Server Artifact
+        uses: actions/upload-artifact@v1
+        with:
+          name: Save Sync Server Windows x86_64
+          path: target/release/server.exe
+
+  build_macos_x86_64:
+    name: macOS x86_64
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install stable rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: run cargo build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all --release
+
+      - name: Upload Client Artifact
+        uses: actions/upload-artifact@v1
+        with:
+          name: Save Sync CLI macOS x86_64
+          path: target/release/cli
+      
+      - name: Upload Server Artifact
+        uses: actions/upload-artifact@v1
+        with:
+          name: Save Sync Server macOS x86_64
+          path: target/release/server
