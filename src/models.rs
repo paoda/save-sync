@@ -13,7 +13,7 @@ pub struct Save {
     pub modified_at: NaiveDateTime,
 }
 
-#[derive(Insertable)]
+#[derive(Clone, Copy, Insertable)]
 #[table_name = "saves"]
 pub struct NewSave<'a> {
     pub friendly_name: &'a str,
@@ -25,7 +25,7 @@ pub struct NewSave<'a> {
     pub modified_at: NaiveDateTime,
 }
 
-#[derive(AsChangeset)]
+#[derive(Clone, Copy, AsChangeset)]
 #[table_name = "saves"]
 pub struct EditSave<'a> {
     pub id: i32,
@@ -44,7 +44,7 @@ pub struct File {
     pub modified_at: NaiveDateTime,
 }
 
-#[derive(Insertable)]
+#[derive(Clone, Copy, Insertable)]
 #[table_name = "files"]
 pub struct NewFile<'a> {
     pub file_path: &'a str,
@@ -54,7 +54,7 @@ pub struct NewFile<'a> {
     pub modified_at: NaiveDateTime,
 }
 
-#[derive(AsChangeset)]
+#[derive(Clone, Copy, AsChangeset)]
 #[table_name = "files"]
 pub struct EditFile<'a> {
     pub id: i32,
@@ -70,7 +70,7 @@ pub struct User {
     pub modified_at: NaiveDateTime,
 }
 
-#[derive(Insertable)]
+#[derive(Clone, Copy, Insertable)]
 #[table_name = "users"]
 pub struct NewUser<'a> {
     pub username: &'a str,
@@ -78,7 +78,7 @@ pub struct NewUser<'a> {
     pub modified_at: NaiveDateTime,
 }
 
-#[derive(AsChangeset)]
+#[derive(Clone, Copy, AsChangeset)]
 #[table_name = "users"]
 pub struct EditUser<'a> {
     pub id: i32,
