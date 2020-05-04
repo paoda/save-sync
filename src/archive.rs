@@ -29,6 +29,7 @@ impl Archive {
 
         let seed = 1337;
 
+        // If hasher implements Writer we can use std::io::copy
         let mut hasher = XxHash64::with_seed(seed);
         let chunk_size = 0x4000;
         let file_result = File::open(path);
@@ -78,26 +79,11 @@ impl Archive {
     }
 
     pub fn compress_file(source: &PathBuf, target: &PathBuf) {
-        use std::io::{Read, Write};
-
-        let buf_size = 0x4000;
-        let mut file = File::open(source).unwrap();
-        let compressed_file = File::create(target).unwrap();
+        let mut file = File::open(source).unwrap(); // Reader
+        let compressed_file = File::create(target).unwrap(); // Writer
         let mut zstd_encoder = zstd::stream::Encoder::new(compressed_file, 0).unwrap();
 
-        loop {
-            let mut chunk = Vec::with_capacity(buf_size);
-            let len = std::io::Read::by_ref(&mut file)
-                .take(buf_size as u64)
-                .read_to_end(&mut chunk)
-                .unwrap();
-            if len == 0 {
-                break;
-            }
-
-            zstd_encoder.write_all(&chunk).unwrap();
-        }
-
+        std::io::copy(&mut file, &mut zstd_encoder).unwrap();
         zstd_encoder.finish().unwrap();
     }
 
@@ -110,27 +96,10 @@ impl Archive {
     }
 
     pub fn decompress_file(source: &PathBuf, target: &PathBuf) {
-        use std::io::{Read, Write};
-
-        let buf_size = 0x4000;
         let file = File::open(source).unwrap();
-        let zstd_decoder = zstd::stream::Decoder::new(file).unwrap();
-
-        let mut decoded_buf = zstd_decoder.finish();
         let mut target_file = File::create(target).unwrap();
 
-        loop {
-            let mut chunk = Vec::with_capacity(buf_size);
-            let len = std::io::Read::by_ref(&mut decoded_buf)
-                .take(buf_size as u64)
-                .read_to_end(&mut chunk)
-                .unwrap();
-            if len == 0 {
-                break;
-            }
-
-            target_file.write_all(&chunk).unwrap();
-        }
+        zstd::stream::copy_decode(&file, &mut target_file).unwrap();
     }
 
     /// Gets a unix time stamp in UTC±0:00
@@ -352,8 +321,8 @@ mod tests {
         let tmp_path = setup_test_dir(test_folder_id);
 
         let expected: [u8; 32] = rand::random();
-        let archive_name = "archive.tar.zst";
-        let file_path: PathBuf = [&tmp_path, &PathBuf::from("rand.bin")].iter().collect();
+        let archive_name = "random.bin.zst";
+        let file_path: PathBuf = [&tmp_path, &PathBuf::from("random.bin")].iter().collect();
         let actual_path: PathBuf = [&tmp_path, &PathBuf::from("actual.bin")].iter().collect();
         let archive_path: PathBuf = [&tmp_path, &PathBuf::from(archive_name)].iter().collect();
         let mut file = File::create(&file_path).unwrap();
