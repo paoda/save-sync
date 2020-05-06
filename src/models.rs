@@ -1,7 +1,7 @@
 use crate::schema::{files, saves, users};
 use chrono::naive::NaiveDateTime;
 
-#[derive(Clone, Debug, Queryable, Insertable)]
+#[derive(Clone, Debug, Eq, PartialEq, Queryable, Insertable)]
 pub struct Save {
     pub id: i32,
     pub friendly_name: String,
@@ -46,7 +46,7 @@ impl PartialEq<NewSave<'_>> for Save {
     }
 }
 
-#[derive(Clone, Debug, Queryable, Insertable)]
+#[derive(Clone, Debug, Eq, PartialEq, Queryable, Insertable)]
 pub struct File {
     pub id: i32,
     pub file_path: String,
@@ -84,7 +84,7 @@ impl PartialEq<NewFile<'_>> for File {
     }
 }
 
-#[derive(Clone, Debug, Queryable, Insertable)]
+#[derive(Clone, Debug, Eq, PartialEq, Queryable, Insertable)]
 pub struct User {
     pub id: i32,
     pub username: String,
