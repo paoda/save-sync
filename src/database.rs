@@ -637,8 +637,9 @@ mod tests {
 
         let query = SaveQuery::new().with_friendly_name("not_in_db");
 
+        let option = db.get_save(query);
         destroy_test_dir(test_folder_id);
-        assert!(db.get_save(query).is_none())
+        assert!(option.is_none());
     }
 
     #[test]
@@ -717,21 +718,130 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn get_all_saves_success() {
-        unimplemented!()
+        use crate::schema::saves;
+
+        let test_folder_id = "get_all_saves_success";
+        let tmp_dir = setup_test_dir(test_folder_id);
+
+        let db_path: PathBuf = [&tmp_dir, &PathBuf::from("test.db")].iter().collect();
+        let db = Database::new(&db_path);
+
+        let time = Utc::now().naive_utc();
+
+        let expected1 = NewSave {
+            friendly_name: "test_game",
+            save_path: "/home/user/Documents/test_game",
+            backup_path: "/home/user/.local/share/save-sync/{uuid}/test_game",
+            uuid: "{uuid}",
+            user_id: 1,
+            created_at: time,
+            modified_at: time,
+        };
+
+        let time = Utc::now().naive_utc();
+
+        let expected2 = NewSave {
+            friendly_name: "other_game",
+            save_path: "/home/user/Documents/other_game",
+            backup_path: "/home/user/.local/share/save-sync/{other_uuid}/other_game",
+            uuid: "{other_uuid}",
+            user_id: 1,
+            created_at: time,
+            modified_at: time,
+        };
+
+        let conn = db.get_conn();
+
+        diesel::insert_into(saves::table)
+            .values(&expected1)
+            .execute(&conn)
+            .unwrap();
+
+        diesel::insert_into(saves::table)
+            .values(&expected2)
+            .execute(&conn)
+            .unwrap();
+
+        let save_list = db.get_all_saves().unwrap();
+
+        destroy_test_dir(test_folder_id);
+        assert!(save_list.len() == 2);
+        let actual1 = save_list.get(0).unwrap().clone();
+        let actual2 = save_list.get(1).unwrap().clone();
+
+        assert_eq!(actual1, expected1);
+        assert_eq!(actual2, expected2);
     }
 
     #[test]
-    #[ignore]
     fn get_all_saves_failure() {
-        unimplemented!();
+        let test_folder_id = "get_all_saves_failure";
+        let tmp_dir = setup_test_dir(test_folder_id);
+
+        let db_path: PathBuf = [&tmp_dir, &PathBuf::from("test.db")].iter().collect();
+        let db = Database::new(&db_path);
+
+        let save_list = db.get_all_saves();
+        destroy_test_dir(test_folder_id);
+        assert!(save_list.is_none());
     }
 
     #[test]
-    #[ignore]
-    fn update_save_succss() {
-        unimplemented!()
+    fn update_save_success() {
+        use crate::schema::saves;
+        use crate::schema::saves::dsl::*;
+
+        let test_folder_id = "update_save_success";
+        let tmp_dir = setup_test_dir(test_folder_id);
+
+        let db_path: PathBuf = [&tmp_dir, &PathBuf::from("test.db")].iter().collect();
+        let db = Database::new(&db_path);
+
+        let time = Utc::now().naive_utc();
+
+        let new_save = NewSave {
+            friendly_name: "test_game",
+            save_path: "/home/user/Documents/test_game",
+            backup_path: "/home/user/.local/share/save-sync/{uuid}/test_game",
+            uuid: "{uuid}",
+            user_id: 1,
+            created_at: time,
+            modified_at: time,
+        };
+
+        let conn = db.get_conn();
+        diesel::insert_into(saves::table)
+            .values(&new_save)
+            .execute(&conn)
+            .unwrap();
+
+        let save_list: Vec<Save> = saves
+            .filter(save_path.eq(&new_save.save_path))
+            .load(&conn)
+            .unwrap();
+
+        let full_save = save_list.first().unwrap().clone();
+
+        let changed_friendly_name = "sample_test_game";
+        let time = Utc::now().naive_utc();
+
+        let edit = EditSave {
+            id: full_save.id,
+            friendly_name: Some(changed_friendly_name),
+            save_path: None,
+            modified_at: time,
+        };
+
+        db.update_save(edit);
+
+        let save_list: Vec<Save> = saves.filter(id.eq(full_save.id)).load(&conn).unwrap();
+        let changed_save = save_list.first().unwrap().clone();
+
+        destroy_test_dir(test_folder_id);
+        assert_eq!(changed_friendly_name, changed_save.friendly_name);
+        assert_eq!(time, changed_save.modified_at);
+        assert_ne!(full_save, changed_save);
     }
 
     #[test]
@@ -893,21 +1003,123 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn get_all_files_success() {
-        unimplemented!()
+        use crate::schema::files;
+
+        let test_folder_id = "get_all_files_success";
+        let tmp_dir = setup_test_dir(test_folder_id);
+
+        let db_path: PathBuf = [&tmp_dir, &PathBuf::from("test.db")].iter().collect();
+        let db = Database::new(&db_path);
+
+        let time = Utc::now().naive_utc();
+
+        let expected1 = NewFile {
+            file_path: "/home/user/Documents/test_game/00.sav",
+            file_hash: &vec![1, 2, 3, 4, 5],
+            save_id: 1,
+            created_at: time,
+            modified_at: time,
+        };
+
+        let time = Utc::now().naive_utc();
+
+        let expected2 = NewFile {
+            file_path: "/home/user/Documents/test_game/01.sav",
+            file_hash: &vec![5, 4, 3, 2, 1],
+            save_id: 1,
+            created_at: time,
+            modified_at: time,
+        };
+
+        let conn = db.get_conn();
+
+        diesel::insert_into(files::table)
+            .values(&expected1)
+            .execute(&conn)
+            .unwrap();
+
+        diesel::insert_into(files::table)
+            .values(&expected2)
+            .execute(&conn)
+            .unwrap();
+
+        let file_list = db.get_all_files().unwrap();
+
+        destroy_test_dir(test_folder_id);
+        assert!(file_list.len() == 2);
+        let actual1 = file_list.get(0).unwrap().clone();
+        let actual2 = file_list.get(1).unwrap().clone();
+
+        assert_eq!(actual1, expected1);
+        assert_eq!(actual2, expected2);
     }
 
     #[test]
-    #[ignore]
     fn get_all_files_failure() {
-        unimplemented!();
+        let test_folder_id = "get_all_files_failure";
+        let tmp_dir = setup_test_dir(test_folder_id);
+
+        let db_path: PathBuf = [&tmp_dir, &PathBuf::from("test.db")].iter().collect();
+        let db = Database::new(&db_path);
+
+        let file_list = db.get_all_files();
+        destroy_test_dir(test_folder_id);
+        assert!(file_list.is_none());
     }
 
     #[test]
-    #[ignore]
-    fn update_file_succss() {
-        unimplemented!()
+    fn update_file_success() {
+        use crate::schema::files;
+        use crate::schema::files::dsl::*;
+
+        let test_folder_id = "update_file_success";
+        let tmp_dir = setup_test_dir(test_folder_id);
+
+        let db_path: PathBuf = [&tmp_dir, &PathBuf::from("test.db")].iter().collect();
+        let db = Database::new(&db_path);
+
+        let time = Utc::now().naive_utc();
+
+        let new_file = NewFile {
+            file_path: "/home/user/Documents/test_game/00.sav",
+            file_hash: &vec![1, 2, 3, 4, 5],
+            save_id: 1,
+            created_at: time,
+            modified_at: time,
+        };
+
+        let conn = db.get_conn();
+        diesel::insert_into(files::table)
+            .values(&new_file)
+            .execute(&conn)
+            .unwrap();
+
+        let file_list: Vec<File> = files
+            .filter(file_path.eq(&new_file.file_path))
+            .load(&conn)
+            .unwrap();
+
+        let full_file = file_list.first().unwrap().clone();
+
+        let changed_file_hash = vec![5, 4, 3, 2, 1, 0];
+        let time = Utc::now().naive_utc();
+
+        let edit = EditFile {
+            id: full_file.id,
+            file_hash: &changed_file_hash,
+            modified_at: time,
+        };
+
+        db.update_file(edit);
+
+        let file_list: Vec<File> = files.filter(id.eq(full_file.id)).load(&conn).unwrap();
+        let changed_file = file_list.first().unwrap().clone();
+
+        destroy_test_dir(test_folder_id);
+        assert_eq!(changed_file_hash, changed_file.file_hash);
+        assert_eq!(time, changed_file.modified_at);
+        assert_ne!(full_file, changed_file);
     }
 
     #[test]
@@ -995,21 +1207,117 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn get_all_users_success() {
-        unimplemented!()
+        use crate::schema::users;
+
+        let test_folder_id = "get_all_users_success";
+        let tmp_dir = setup_test_dir(test_folder_id);
+
+        let db_path: PathBuf = [&tmp_dir, &PathBuf::from("test.db")].iter().collect();
+        let db = Database::new(&db_path);
+
+        let time = Utc::now().naive_utc();
+
+        let expected1 = NewUser {
+            username: "DarkFlameMaster",
+            created_at: time,
+            modified_at: time,
+        };
+
+        let time = Utc::now().naive_utc();
+
+        let expected2 = NewUser {
+            username: "mr_producer", // Selfish romantic, not childish, how's life?
+            created_at: time,
+            modified_at: time,
+        };
+
+        let conn = db.get_conn();
+
+        diesel::insert_into(users::table)
+            .values(&expected1)
+            .execute(&conn)
+            .unwrap();
+
+        diesel::insert_into(users::table)
+            .values(&expected2)
+            .execute(&conn)
+            .unwrap();
+
+        let user_list = db.get_all_users().unwrap();
+
+        destroy_test_dir(test_folder_id);
+        assert!(user_list.len() == 2);
+        let actual1 = user_list.get(0).unwrap().clone();
+        let actual2 = user_list.get(1).unwrap().clone();
+
+        assert_eq!(actual1, expected1);
+        assert_eq!(actual2, expected2);
     }
 
     #[test]
-    #[ignore]
     fn get_all_users_failure() {
-        unimplemented!();
+        let test_folder_id = "get_all_users_failure";
+        let tmp_dir = setup_test_dir(test_folder_id);
+
+        let db_path: PathBuf = [&tmp_dir, &PathBuf::from("test.db")].iter().collect();
+        let db = Database::new(&db_path);
+
+        let user_list = db.get_all_users();
+        destroy_test_dir(test_folder_id);
+        assert!(user_list.is_none());
     }
 
     #[test]
-    #[ignore]
-    fn update_user_succss() {
-        unimplemented!()
+    fn update_user_success() {
+        use crate::schema::users;
+        use crate::schema::users::dsl::*;
+
+        let test_folder_id = "update_user_success";
+        let tmp_dir = setup_test_dir(test_folder_id);
+
+        let db_path: PathBuf = [&tmp_dir, &PathBuf::from("test.db")].iter().collect();
+        let db = Database::new(&db_path);
+
+        let time = Utc::now().naive_utc();
+
+        let new_user = NewUser {
+            username: "DarkFlameMaster",
+            created_at: time,
+            modified_at: time,
+        };
+
+        let conn = db.get_conn();
+        diesel::insert_into(users::table)
+            .values(&new_user)
+            .execute(&conn)
+            .unwrap();
+
+        let user_list: Vec<User> = users
+            .filter(username.eq(&new_user.username))
+            .load(&conn)
+            .unwrap();
+
+        let full_user = user_list.first().unwrap().clone();
+
+        let changed_username = "『　　』";
+        let time = Utc::now().naive_utc();
+
+        let edit = EditUser {
+            id: full_user.id,
+            username: Some(changed_username),
+            modified_at: time,
+        };
+
+        db.update_user(edit);
+
+        let user_list: Vec<User> = users.filter(id.eq(full_user.id)).load(&conn).unwrap();
+        let changed_user = user_list.first().unwrap().clone();
+
+        destroy_test_dir(test_folder_id);
+        assert_eq!(changed_username, changed_user.username);
+        assert_eq!(time, changed_user.modified_at);
+        assert_ne!(full_user, changed_user);
     }
 
     #[test]
