@@ -220,6 +220,7 @@ mod tests {
     use super::*;
     use std::fs;
     use std::fs::File;
+    use tempfile::TempDir;
 
     #[test]
     fn convert_u64_to_bytes_valid() {
@@ -236,10 +237,10 @@ mod tests {
         use rand;
         use std::io::Write;
 
-        let test_folder_id = "hash";
-        let tmp_path = setup_test_dir(test_folder_id);
+        let test_dir = TempDir::new().unwrap();
+        let tmp_path = test_dir.path();
 
-        let file_path: PathBuf = [&tmp_path, &PathBuf::from("rand.bin")].iter().collect();
+        let file_path: PathBuf = [tmp_path, &PathBuf::from("rand.bin")].iter().collect();
         let bytes: [u8; 32] = rand::random();
 
         let mut file = File::create(&file_path).unwrap();
@@ -254,20 +255,21 @@ mod tests {
 
         let actual = Archive::calc_hash(&file_path);
 
-        destroy_test_dir(test_folder_id);
+        test_dir.close().unwrap();
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn compress_and_decompress_directory() {
         use std::io::{Read, Write};
-        let test_folder_id = "compress_dir";
-        let tmp_path = setup_test_dir(test_folder_id);
+
+        let test_dir = TempDir::new().unwrap();
+        let tmp_path = test_dir.path();
 
         let archive_name = "archive.tar.zst";
-        let src_dir: PathBuf = [&tmp_path, &PathBuf::from("test_dir")].iter().collect();
-        let archive_path: PathBuf = [&tmp_path, &PathBuf::from(archive_name)].iter().collect();
-        let copy_dir: PathBuf = [&tmp_path, &PathBuf::from("decompress")].iter().collect();
+        let src_dir: PathBuf = [tmp_path, &PathBuf::from("test_dir")].iter().collect();
+        let archive_path: PathBuf = [tmp_path, &PathBuf::from(archive_name)].iter().collect();
+        let copy_dir: PathBuf = [tmp_path, &PathBuf::from("decompress")].iter().collect();
 
         // Example Directory
         fs::create_dir(&src_dir).unwrap();
@@ -307,8 +309,7 @@ mod tests {
         let mut file2 = File::open(file2_copy_path).unwrap();
         file2.read_to_string(&mut file2_actual).unwrap();
 
-        destroy_test_dir(test_folder_id);
-
+        test_dir.close().unwrap();
         assert_eq!(file1_actual, file1_expected);
         assert_eq!(file2_actual, file2_expected);
     }
@@ -317,14 +318,14 @@ mod tests {
     fn compress_and_decompress_file() {
         use std::io::{Read, Write};
 
-        let test_folder_id = "compress_file";
-        let tmp_path = setup_test_dir(test_folder_id);
+        let test_dir = TempDir::new().unwrap();
+        let tmp_path = test_dir.path();
 
         let expected: [u8; 32] = rand::random();
         let archive_name = "random.bin.zst";
-        let file_path: PathBuf = [&tmp_path, &PathBuf::from("random.bin")].iter().collect();
-        let actual_path: PathBuf = [&tmp_path, &PathBuf::from("actual.bin")].iter().collect();
-        let archive_path: PathBuf = [&tmp_path, &PathBuf::from(archive_name)].iter().collect();
+        let file_path: PathBuf = [tmp_path, &PathBuf::from("random.bin")].iter().collect();
+        let actual_path: PathBuf = [tmp_path, &PathBuf::from("actual.bin")].iter().collect();
+        let archive_path: PathBuf = [tmp_path, &PathBuf::from(archive_name)].iter().collect();
         let mut file = File::create(&file_path).unwrap();
 
         file.write_all(&expected).unwrap();
@@ -337,7 +338,7 @@ mod tests {
         let mut actual = vec![];
         file.read_to_end(&mut actual).unwrap();
 
-        destroy_test_dir(test_folder_id);
+        test_dir.close().unwrap();
         assert_eq!(actual, expected.to_vec());
     }
 
@@ -360,15 +361,18 @@ mod tests {
 
     #[test]
     fn example_file_query() {
+        let hash: [u8; 32] = rand::random();
+        let hash = hash.to_vec();
+
         let actual = FileQuery::new()
             .with_id(943)
-            .with_hash(vec![1, 2, 3, 4, 5])
+            .with_hash(hash.clone())
             .with_save_id(2);
 
         let expected = FileQuery {
             id: Some(943),
             path: None,
-            hash: Some(vec![1, 2, 3, 4, 5]),
+            hash: Some(hash),
             save_id: Some(2),
         };
 
@@ -387,22 +391,5 @@ mod tests {
         };
 
         assert_eq!(actual, expected);
-    }
-
-    fn setup_test_dir(id: &str) -> PathBuf {
-        let test_dir = PathBuf::from(format!("./tmp_dir_archive_{}", id));
-
-        if test_dir.exists() {
-            destroy_test_dir(id);
-        }
-
-        fs::create_dir(&test_dir).unwrap();
-        test_dir
-    }
-
-    fn destroy_test_dir(id: &str) {
-        let test_dir = PathBuf::from(format!("./tmp_dir_archive_{}", id));
-
-        fs::remove_dir_all(test_dir).unwrap();
     }
 }

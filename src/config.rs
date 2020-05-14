@@ -14,7 +14,7 @@ lazy_static! {
 pub struct Config {
     pub db_location: PathBuf,
     pub data_location: PathBuf,
-    pub xxhash_seed: u64,
+    pub xxhash_seed: i64, // Issue: https://github.com/alexcrichton/toml-rs/issues/256
 }
 
 impl Default for Config {
@@ -133,15 +133,16 @@ impl ConfigManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
+    use rand;
     use std::fs::File;
     use std::io::{Read, Write};
     use std::path::PathBuf;
+    use tempfile::TempDir;
 
     #[test]
     fn config_update_valid_input() {
         let expected_data_location = PathBuf::from("new_data_location");
-        let expected_xxhash_seed = 12345;
+        let expected_xxhash_seed: i64 = rand::random();
         let expected_db_location = PathBuf::from("new_db_location");
 
         let expected = Config {
@@ -159,13 +160,13 @@ mod tests {
 
     #[test]
     pub fn verify_write_to_file() {
-        let test_folder_id = "write_to_file";
-        let tmp_dir = setup_test_dir(test_folder_id);
+        let test_dir = TempDir::new().unwrap();
+        let tmp_dir = test_dir.path();
 
-        let settings_path: PathBuf = [&tmp_dir, &PathBuf::from("settings.toml")].iter().collect();
+        let settings_path: PathBuf = [tmp_dir, &PathBuf::from("settings.toml")].iter().collect();
 
         let expected_data_location = PathBuf::from("new_data_location");
-        let expected_xxhash_seed = 12345;
+        let expected_xxhash_seed: i64 = rand::random();
         let expected_db_location = PathBuf::from("new_db_location");
 
         let expected = Config {
@@ -185,21 +186,22 @@ mod tests {
 
         let actual: Config = toml::from_slice(&toml_buf).unwrap();
 
-        destroy_test_dir(test_folder_id);
+        test_dir.close().unwrap();
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn verify_load_from_file() {
-        let test_folder_id = "load_from_file";
-        let tmp_dir = setup_test_dir(test_folder_id);
+        // FIXME: This test sometimes fails. Why?
+        let test_dir = TempDir::new().unwrap();
+        let tmp_dir = test_dir.path();
 
-        let settings_path: PathBuf = [&tmp_dir, &PathBuf::from("settings.toml")].iter().collect();
+        let settings_path: PathBuf = [tmp_dir, &PathBuf::from("settings.toml")].iter().collect();
         let manager = ConfigManager::new(settings_path.clone());
         let mut settings = File::create(&settings_path).unwrap();
 
         let expected_data_location = PathBuf::from("new_data_location");
-        let expected_xxhash_seed = 12345;
+        let expected_xxhash_seed: i64 = rand::random();
         let expected_db_location = PathBuf::from("new_db_location");
 
         let expected = Config {
@@ -215,16 +217,16 @@ mod tests {
 
         let actual = &*Config::static_config();
 
-        destroy_test_dir(test_folder_id);
+        test_dir.close().unwrap();
         assert_eq!(*actual, expected);
     }
 
     #[test]
     fn verify_create_config_file() {
-        let test_folder_id = "create_config";
+        let test_dir = TempDir::new().unwrap();
+        let tmp_dir = test_dir.path();
         let expected = Config::default();
-        let tmp_dir = setup_test_dir(test_folder_id);
-        let settings_path: PathBuf = [&tmp_dir, &PathBuf::from("settings.toml")].iter().collect();
+        let settings_path: PathBuf = [tmp_dir, &PathBuf::from("settings.toml")].iter().collect();
 
         ConfigManager::create_config_file(&settings_path);
         let mut file = File::open(&settings_path).unwrap();
@@ -233,24 +235,7 @@ mod tests {
         file.read_to_string(&mut toml_string).unwrap();
         let actual: Config = toml::from_str(&toml_string).unwrap();
 
+        test_dir.close().unwrap();
         assert_eq!(actual, expected);
-        destroy_test_dir(test_folder_id);
-    }
-
-    fn setup_test_dir(id: &str) -> PathBuf {
-        let test_dir = PathBuf::from(format!("./tmp_dir_config_{}", id));
-
-        if test_dir.exists() {
-            destroy_test_dir(id);
-        }
-
-        fs::create_dir(&test_dir).unwrap();
-        test_dir
-    }
-
-    fn destroy_test_dir(id: &str) {
-        let test_dir = PathBuf::from(format!("./tmp_dir_config_{}", id));
-
-        fs::remove_dir_all(test_dir).unwrap();
     }
 }
