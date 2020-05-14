@@ -133,9 +133,10 @@ impl Database {
                 .expect(err_msg);
         }
 
-        match list.is_empty() {
-            true => None,
-            false => Some(list),
+        if list.is_empty() {
+            None
+        } else {
+            Some(list)
         }
     }
 
@@ -145,9 +146,10 @@ impl Database {
         let conn = self.get_conn();
         let list: Vec<Save> = saves.load(&conn).expect("Unable to query database.");
 
-        match list.is_empty() {
-            true => None,
-            false => Some(list),
+        if list.is_empty() {
+            None
+        } else {
+            Some(list)
         }
     }
 
@@ -258,9 +260,10 @@ impl Database {
                 .expect(err_msg);
         }
 
-        match list.is_empty() {
-            true => None,
-            false => Some(list),
+        if list.is_empty() {
+            None
+        } else {
+            Some(list)
         }
     }
 
@@ -270,9 +273,10 @@ impl Database {
         let conn = self.get_conn();
         let list: Vec<File> = files.load(&conn).expect("Unable to query database.");
 
-        match list.is_empty() {
-            true => None,
-            false => Some(list),
+        if list.is_empty() {
+            None
+        } else {
+            Some(list)
         }
     }
 
@@ -369,9 +373,10 @@ impl Database {
         let conn = self.get_conn();
         let list: Vec<User> = users.load(&conn).expect("Unable to query database.");
 
-        match list.is_empty() {
-            true => None,
-            false => Some(list),
+        if list.is_empty() {
+            None
+        } else {
+            Some(list)
         }
     }
 
