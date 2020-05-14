@@ -6,6 +6,7 @@ use tar::Archive as TarArchive;
 use tar::Builder as TarBuilder;
 use twox_hash::XxHash64;
 
+#[derive(Debug, Default)]
 pub struct Archive {}
 
 impl Archive {
@@ -20,7 +21,10 @@ impl Archive {
 
         match bytes.write_u64::<LittleEndian>(num) {
             Ok(_) => bytes,
-            Err(_err) => panic!("Unable to convert u64 into Vec<u8>"),
+            Err(err) => {
+                dbg!(err); // FIXME: https://rust-lang.github.io/rust-clippy/master/index.html#match_wild_err_arm
+                panic!("Unable to convert u64 into Vec<u8>")
+            }
         }
     }
 
@@ -111,7 +115,7 @@ impl Archive {
 pub mod query {
     use std::path::PathBuf;
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, Default, PartialEq, Eq)]
     pub struct SaveQuery {
         pub id: Option<i32>,
         pub friendly_name: Option<String>,
@@ -149,7 +153,7 @@ pub mod query {
         }
     }
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, Default, PartialEq, Eq)]
     pub struct FileQuery {
         pub id: Option<i32>,
         pub path: Option<PathBuf>,
@@ -188,7 +192,7 @@ pub mod query {
         }
     }
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, Default, PartialEq, Eq)]
     pub struct UserQuery {
         pub id: Option<i32>,
         pub username: Option<String>,

@@ -4,7 +4,6 @@ use std::fs;
 use std::io::{BufReader, Read, Write};
 use std::path::PathBuf;
 use std::sync::{RwLock, RwLockReadGuard};
-use toml;
 
 lazy_static! {
     static ref CONFIG: RwLock<Config> = RwLock::new(Config::default());
@@ -48,7 +47,7 @@ impl Config {
 
     fn get_default_data_path() -> PathBuf {
         match ProjectDirs::from("moe", "paoda", "Save Sync") {
-            Some(project) => return project.data_dir().to_path_buf(),
+            Some(project) => project.data_dir().to_path_buf(),
             None => panic!("No valid home directory could be retrieved from the Operating System."),
         }
     }
@@ -69,10 +68,12 @@ impl ConfigManager {
     }
 
     fn create_config_directory(path: &PathBuf) {
-        let parent = path.parent().expect(&format!(
-            "Unable to determine parent directory of {}",
-            path.to_string_lossy()
-        )); // TODO: Instead of panicking , handle this option as if it were a ConfigError
+        let parent = path.parent().unwrap_or_else(|| {
+            panic!(
+                "Unable to determine parent directory of {}",
+                path.to_string_lossy()
+            )
+        }); // TODO: Instead of panicking , handle this option as if it were a ConfigError
 
         if !parent.exists() {
             fs::create_dir_all(parent).unwrap();
@@ -124,7 +125,7 @@ impl ConfigManager {
 
     pub fn get_config_dir() -> PathBuf {
         match ProjectDirs::from("moe", "paoda", "Save Sync") {
-            Some(project) => return project.config_dir().to_path_buf(),
+            Some(project) => project.config_dir().to_path_buf(),
             None => panic!("No Valid home directory could be retrieved from the Operating System."),
         }
     }
