@@ -12,6 +12,8 @@ pub struct Database {
 
 impl Database {
     pub fn new(db_url: &PathBuf) -> Database {
+        Self::check_db_path(db_url);
+
         let manager = ConnectionManager::new(db_url.to_str().unwrap());
         let pool = Pool::builder()
             .max_size(15) // TODO: Make Configurable? Is this even necessary?
@@ -28,6 +30,15 @@ impl Database {
 
         embed_migrations!("./migrations");
         embedded_migrations::run(conn).expect("Failed to run embedded database migrations.");
+    }
+
+    fn check_db_path(path: &PathBuf) {
+        // Quick Check to make sure the parent directory of the db file exists
+        let parent = path.parent().unwrap();
+
+        if !parent.exists() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
     }
 
     pub fn get_pool(self) -> Pool<ConnectionManager<SqliteConnection>> {

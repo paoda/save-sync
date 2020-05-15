@@ -1,3 +1,4 @@
+use crate::config::Config;
 use chrono::prelude::{NaiveDateTime, Utc};
 use std::fs::File;
 use std::hash::Hasher;
@@ -31,7 +32,8 @@ impl Archive {
     pub fn calc_hash(path: &PathBuf) -> u64 {
         use std::io::Read;
 
-        let seed = 1337;
+        let config = Config::static_config();
+        let seed = config.xxhash_seed as u64;
 
         // If hasher implements Writer we can use std::io::copy
         let mut hasher = XxHash64::with_seed(seed);
@@ -229,6 +231,7 @@ pub mod query {
 mod tests {
     use super::query::*;
     use super::*;
+    use crate::config::Config;
     use std::fs;
     use std::fs::File;
     use tempfile::TempDir;
@@ -257,8 +260,11 @@ mod tests {
         let mut file = File::create(&file_path).unwrap();
         file.write_all(&bytes).unwrap();
 
+        let config = Config::static_config();
+        let seed = config.xxhash_seed as u64;
+
         let expected = {
-            let mut hasher = XxHash64::with_seed(1337); // Make sure same seed
+            let mut hasher = XxHash64::with_seed(seed); // Make sure same seed
             hasher.write(&bytes);
 
             hasher.finish()

@@ -1,6 +1,6 @@
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
-use std::fs;
+use std::fs::{self, File};
 use std::io::{BufReader, Read, Write};
 use std::path::PathBuf;
 use std::sync::{RwLock, RwLockReadGuard};
@@ -13,7 +13,8 @@ lazy_static! {
 pub struct Config {
     pub db_location: PathBuf,
     pub data_location: PathBuf,
-    pub xxhash_seed: i64, // Issue: https://github.com/alexcrichton/toml-rs/issues/256
+    pub xxhash_seed: i64, // Issue: https://github.com/alexcrichton/toml-rs/issues/256 (should be u64)
+    pub local_username: String,
 }
 
 impl Default for Config {
@@ -27,6 +28,7 @@ impl Default for Config {
             db_location,
             data_location,
             xxhash_seed: 1_912_251_925_143,
+            local_username: "Default".to_string(),
         }
     }
 }
@@ -53,9 +55,29 @@ impl Config {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct ConfigManager {
     config_file_path: PathBuf,
+}
+
+impl Default for ConfigManager {
+    fn default() -> Self {
+        let path: PathBuf;
+
+        // Look in the environment variable, and if nothing
+        // is there then we use directories-rs
+        match std::env::var("SAVE_SYNC_CONFIG_PATH") {
+            Ok(env) => path = PathBuf::from(env),
+            Err(_err) => {
+                let base = ConfigManager::get_config_dir();
+                path = base.join("settings.toml");
+            }
+        }
+
+        ConfigManager {
+            config_file_path: path,
+        }
+    }
 }
 
 impl ConfigManager {
@@ -87,38 +109,35 @@ impl ConfigManager {
             let config = Config::default();
 
             let toml_string = toml::to_string(&config).unwrap();
-            let mut file = fs::File::create(path).unwrap();
+            let mut file = File::create(path).unwrap();
             file.write_all(toml_string.as_bytes()).unwrap();
         } else {
             // FIXME: Code Duplication here :\
 
-            let file = fs::File::open(path).unwrap();
-            let mut buf_reader = BufReader::new(file);
-            let mut toml_buffer = vec![];
-            buf_reader.read_to_end(&mut toml_buffer).unwrap();
-
-            let config: Config = toml::from_slice(&toml_buffer).unwrap();
-
-            Config::update(config);
+            let file = File::open(path).unwrap();
+            Self::update_config_from_file(&file);
         }
     }
 
-    pub fn load_from_file(&self) {
-        let file = fs::File::open(&self.config_file_path).unwrap();
+    fn update_config_from_file(file: &File) {
         let mut buf_reader = BufReader::new(file);
-        let mut toml_buffer = vec![];
-        buf_reader.read_to_end(&mut toml_buffer).unwrap();
+        let mut toml_buf = vec![];
+        buf_reader.read_to_end(&mut toml_buf).unwrap();
 
-        let config: Config = toml::from_slice(&toml_buffer).unwrap();
+        let config: Config = toml::from_slice(&toml_buf).unwrap();
+        Config::update(config);
+    }
 
-        Config::update(config)
+    pub fn load_from_file(&self) {
+        let file = File::open(&self.config_file_path).unwrap();
+        Self::update_config_from_file(&file);
     }
 
     pub fn write_to_file(&self) {
         let config = Config::static_config();
         let toml_string = toml::to_string(&(*config)).unwrap();
 
-        let mut file = fs::File::create(&self.config_file_path).unwrap();
+        let mut file = File::create(&self.config_file_path).unwrap();
 
         file.write_all(toml_string.as_bytes()).unwrap();
     }
@@ -150,6 +169,7 @@ mod tests {
             data_location: expected_data_location.clone(),
             xxhash_seed: expected_xxhash_seed,
             db_location: expected_db_location.clone(),
+            local_username: "SomeUser".to_string(),
         };
 
         Config::update(expected.clone());
@@ -174,6 +194,7 @@ mod tests {
             data_location: expected_data_location,
             xxhash_seed: expected_xxhash_seed,
             db_location: expected_db_location,
+            local_username: "User1".to_string(),
         };
 
         Config::update(expected.clone());
@@ -209,6 +230,7 @@ mod tests {
             data_location: expected_data_location,
             xxhash_seed: expected_xxhash_seed,
             db_location: expected_db_location,
+            local_username: "Default".to_string(),
         };
 
         let toml_str = toml::to_string(&expected).unwrap();

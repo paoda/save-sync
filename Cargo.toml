@@ -20,6 +20,7 @@ toml = "0.5.6"
 twox-hash = "1.5.0"
 uuid = { version = "0.8.1", features = ["v4"] }
 zstd = "0.5.1"
+thiserror = "1.0.17"
 
 [workspace]
 members = ["cli", "server"]
@@ -29,3 +30,4 @@ default-members = ["cli", "server"]
 rand = "0.7.3"
 dotenv = "0.15.0"
 tempfile = "3.1.0"
+uuid = { version= "0.8.1", features = ["v4"] } 
