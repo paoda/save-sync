@@ -201,7 +201,7 @@ mod tests {
         let manager = ConfigManager::new(settings_path.clone());
         manager.write_to_file();
 
-        let mut file = File::open(manager.config_file_path).unwrap();
+        let mut file = File::open(settings_path).unwrap();
 
         let mut toml_buf = vec![];
         file.read_to_end(&mut toml_buf).unwrap();
