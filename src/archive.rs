@@ -119,6 +119,7 @@ pub mod query {
     pub struct SaveQuery {
         pub id: Option<i32>,
         pub friendly_name: Option<String>,
+        pub uuid: Option<String>,
         pub path: Option<PathBuf>,
         pub user_id: Option<i32>,
     }
@@ -128,6 +129,7 @@ pub mod query {
             SaveQuery {
                 id: None,
                 friendly_name: None,
+                uuid: None,
                 path: None,
                 user_id: None,
             }
@@ -149,6 +151,11 @@ pub mod query {
 
         pub fn with_user_id(mut self, id: i32) -> SaveQuery {
             self.user_id = Some(id);
+            self
+        }
+
+        pub fn with_uuid(mut self, uuid: &str) -> SaveQuery {
+            self.uuid = Some(uuid.to_string());
             self
         }
     }
@@ -351,11 +358,13 @@ mod tests {
         let actual = SaveQuery::new()
             .with_id(1)
             .with_friendly_name("game1")
+            .with_uuid("{uuid}")
             .with_path(PathBuf::from("test_location"));
 
         let expected = SaveQuery {
             id: Some(1),
             friendly_name: Some(String::from("game1")),
+            uuid: Some(String::from("{uuid}")),
             path: Some(PathBuf::from("test_location")),
             user_id: None,
         };

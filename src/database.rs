@@ -99,6 +99,8 @@ impl Database {
 
         if let Some(search_id) = query.id {
             list = saves.filter(id.eq(search_id)).load(&conn).expect(err_msg);
+        } else if let Some(q_uuid) = query.uuid {
+            list = saves.filter(uuid.eq(&q_uuid)).load(&conn).expect(err_msg);
         } else if let Some(name) = query.friendly_name {
             list = saves
                 .filter(friendly_name.eq(&name))
@@ -707,6 +709,60 @@ mod tests {
             .unwrap();
 
         let query = SaveQuery::new().with_friendly_name("test_game");
+        let actual = db.get_save(query).unwrap();
+
+        drop(conn);
+        drop(db);
+
+        test_dir.close().unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn get_save_uuid_success() {
+        use crate::schema::saves;
+        use uuid::Uuid;
+
+        let test_dir = TempDir::new().unwrap();
+        let tmp_dir = test_dir.path();
+
+        let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
+        let db = Database::new(&db_path);
+
+        let time = Utc::now().naive_utc();
+        let mut uuid_buf = Uuid::encode_buffer();
+
+        let uuid = Uuid::new_v4().to_hyphenated().encode_lower(&mut uuid_buf);
+
+        let expected = NewSave {
+            friendly_name: "test_game",
+            save_path: "/home/user/Documents/test_game",
+            backup_path: "/home/user/.local/share/save-sync/{uuid}/test_game",
+            uuid: uuid,
+            user_id: 1,
+            created_at: time,
+            modified_at: time,
+        };
+
+        let user1 = NewUser {
+            username: "DarkFlameMaster",
+            created_at: time,
+            modified_at: time,
+        };
+
+        let conn = db.get_conn();
+
+        diesel::insert_into(schema::users::table)
+            .values(&user1)
+            .execute(&conn)
+            .unwrap();
+
+        diesel::insert_into(saves::table)
+            .values(&expected)
+            .execute(&conn)
+            .unwrap();
+
+        let query = SaveQuery::new().with_uuid(uuid);
         let actual = db.get_save(query).unwrap();
 
         drop(conn);
