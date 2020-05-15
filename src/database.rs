@@ -738,7 +738,7 @@ mod tests {
             friendly_name: "test_game",
             save_path: "/home/user/Documents/test_game",
             backup_path: "/home/user/.local/share/save-sync/{uuid}/test_game",
-            uuid: uuid,
+            uuid,
             user_id: 1,
             created_at: time,
             modified_at: time,
