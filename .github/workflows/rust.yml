@@ -2,9 +2,9 @@ name: Rust
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 jobs:
   check:
@@ -39,7 +39,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      
+
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
@@ -59,13 +59,13 @@ jobs:
           toolchain: stable
           override: true
           components: rustfmt, clippy
-      
+
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all
-      
+
       - name: Run cargo clippy
         uses: actions-rs/cargo@v1
         with:
@@ -91,9 +91,9 @@ jobs:
         with:
           command: build
           args: --all --release
-      
+
       - name: Strip Binaries
-        run: | 
+        run: |
           strip target/release/cli
           strip target/release/server
 
@@ -102,7 +102,7 @@ jobs:
         with:
           name: Save Sync CLI Linux x86_64
           path: target/release/cli
-      
+
       - name: Upload Server Artifact
         uses: actions/upload-artifact@v1
         with:
@@ -134,7 +134,7 @@ jobs:
         with:
           name: Save Sync CLI Windows x86_64
           path: target/release/cli.exe
-      
+
       - name: Upload Server Artifact
         uses: actions/upload-artifact@v1
         with:
@@ -166,7 +166,7 @@ jobs:
         with:
           name: Save Sync CLI macOS x86_64
           path: target/release/cli
-      
+
       - name: Upload Server Artifact
         uses: actions/upload-artifact@v1
         with:
