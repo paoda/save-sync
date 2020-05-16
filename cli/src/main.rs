@@ -1,7 +1,8 @@
 use clap::{App, Arg, ArgMatches, SubCommand};
 use cli::archive::Archive;
+use save_sync::archive::query::{SaveQuery, UserQuery};
 use save_sync::config::Config;
-use save_sync::models::{NewUser, User};
+use save_sync::models::{NewUser, Save, User};
 use save_sync::ConfigManager;
 use save_sync::Database;
 use std::path::PathBuf;
@@ -97,7 +98,7 @@ fn main() {
     match matches.subcommand() {
         ("add", Some(sub_matches)) => add_save(sub_matches),
         ("delete", Some(sub_matches)) => del_path(sub_matches),
-        ("info", Some(sub_matches)) => get_info(sub_matches),
+        ("info", Some(sub_matches)) => get_save_info(sub_matches),
         ("list", Some(_sub_matches)) => list_tracked_saves(),
         ("update", Some(sub_matches)) => update_saves(sub_matches),
         _ => {}
@@ -135,13 +136,88 @@ fn del_path(_args: &ArgMatches) {
     unimplemented!()
 }
 
-fn get_info(_args: &ArgMatches) {
-    unimplemented!()
+fn get_save_info(_args: &ArgMatches) {
+    let _manager = ConfigManager::default();
+    let config = Config::static_config();
+    let db = Database::new(&config.db_location);
+    let mut save: Option<Save> = None;
+
+    if let Some(name) = _args.value_of("friendly") {
+        // Get save by friendly name.
+        let query = SaveQuery::new().with_friendly_name(name);
+        let option = db.get_save(query);
+
+        match option {
+            Some(result) => save = Some(result),
+            None => eprintln!("There was no save labelled as \"{}\" in the db.", name),
+        }
+    } else if let Some(path) = _args.value_of("path") {
+        // get save by save path.
+        let query = SaveQuery::new().with_path(PathBuf::from(path));
+        let option = db.get_save(query);
+
+        match option {
+            Some(result) => save = Some(result),
+            None => eprintln!(
+                "\"{}\" is not a path which is stored in the database.",
+                path
+            ),
+        }
+    } else {
+        eprintln!("No friendly name or save path provided.")
+    }
+
+    if let Some(save) = save {
+        println!("\"{}\"", save.save_path);
+        println!("---");
+
+        if save.friendly_name.is_empty() {
+            println!("Friendly name: none");
+        } else {
+            println!("Friendly name: {}", save.friendly_name);
+        }
+
+        // Get user which owns this save.
+        let query = UserQuery::new().with_id(save.user_id);
+        let option = db.get_user(query);
+
+        match option {
+            Some(user) => println!("Belongs to: {}", user.username),
+            None => println!("Belongs to: User #{}", save.user_id),
+        }
+
+        println!("UUID: {}", save.uuid);
+        println!("Backup path: {}", save.backup_path);
+        println!("Created: {}", save.created_at);
+        println!("Modified: {}", save.modified_at);
+    }
+
+    // SubCommand::with_name("info")
+    //             .about("Display information about saved data.")
+    //             .arg(
+    //                 Arg::with_name("friendly")
+    //                     .short("f")
+    //                     .long("friendly")
+    //                     .value_name("NAME")
+    //                     .takes_value(true)
+    //                     .help("The friendly name of the saved data."),
+    //             )
+    //             .arg(
+    //                 Arg::with_name("path")
+    //                     .help("the path of the saved data.")
+    //                     .index(1)
+    //                     .required_unless("friendly"),
+    //             )
+    //             .arg(
+    //                 Arg::with_name("delta")
+    //                     .short("d")
+    //                     .long("delta")
+    //                     .help("Determines which files have changed since last backup."),
+    //             ),
+    //     )
 }
 
 fn list_tracked_saves() {
-    use save_sync::archive::query::SaveQuery;
-
     let _manager = ConfigManager::default();
     let config = Config::static_config();
     let db = Database::new(&config.db_location);
@@ -174,7 +250,6 @@ fn update_saves(_args: &ArgMatches) {
 
 fn get_local_user(db: &Database, username: &str) -> User {
     use chrono::Utc;
-    use save_sync::archive::query::UserQuery;
 
     let query = UserQuery::new().with_username(&username);
     let option = db.get_user(query);
