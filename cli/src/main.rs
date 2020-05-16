@@ -98,7 +98,7 @@ fn main() {
         ("add", Some(sub_matches)) => add_save(sub_matches),
         ("delete", Some(sub_matches)) => del_path(sub_matches),
         ("info", Some(sub_matches)) => get_info(sub_matches),
-        ("list", Some(_sub_matches)) => list_tracked(),
+        ("list", Some(_sub_matches)) => list_tracked_saves(),
         ("update", Some(sub_matches)) => update_saves(sub_matches),
         _ => {}
     }
@@ -108,8 +108,6 @@ fn main() {
 fn add_save(args: &ArgMatches) {
     let _manager = ConfigManager::default();
     let config = Config::static_config();
-
-    dbg!(&config.db_location);
 
     match args.value_of("path") {
         Some(path) => {
@@ -141,8 +139,33 @@ fn get_info(_args: &ArgMatches) {
     unimplemented!()
 }
 
-fn list_tracked() {
-    unimplemented!()
+fn list_tracked_saves() {
+    use save_sync::archive::query::SaveQuery;
+
+    let _manager = ConfigManager::default();
+    let config = Config::static_config();
+    let db = Database::new(&config.db_location);
+    let user = get_local_user(&db, &config.local_username);
+
+    let query = SaveQuery::new().with_user_id(user.id);
+    let option = db.get_saves(query);
+
+    match option {
+        Some(saves) => {
+            for save in saves {
+                let friendly_name = save.friendly_name;
+                let save_path = save.save_path;
+                let uuid = save.uuid;
+
+                if !friendly_name.is_empty() {
+                    print!("[{}]: ", friendly_name);
+                }
+
+                println!("\"{}\" | {{{}}}", save_path, uuid);
+            }
+        }
+        None => eprintln!("No saves in database."),
+    }
 }
 
 fn update_saves(_args: &ArgMatches) {

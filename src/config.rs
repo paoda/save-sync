@@ -48,7 +48,7 @@ impl Config {
     }
 
     fn get_default_data_path() -> PathBuf {
-        match ProjectDirs::from("moe", "paoda", "Save Sync") {
+        match ProjectDirs::from("moe", "paoda", "save-sync") {
             Some(project) => project.data_dir().to_path_buf(),
             None => panic!("No valid home directory could be retrieved from the Operating System."),
         }
@@ -143,7 +143,7 @@ impl ConfigManager {
     }
 
     pub fn get_config_dir() -> PathBuf {
-        match ProjectDirs::from("moe", "paoda", "Save Sync") {
+        match ProjectDirs::from("moe", "paoda", "save-sync") {
             Some(project) => project.config_dir().to_path_buf(),
             None => panic!("No Valid home directory could be retrieved from the Operating System."),
         }
