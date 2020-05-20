@@ -93,6 +93,24 @@ fn main() {
                         .index(1),
                 ),
         )
+        .subcommand(
+            SubCommand::with_name("verify")
+                .about("Verify that Save Backup is up to date.")
+                .arg(
+                    Arg::with_name("friendly")
+                        .short("f")
+                        .long("friendly")
+                        .value_name("NAME")
+                        .takes_value(true)
+                        .help("The friendly name of the save that you want to verify"),
+                )
+                .arg(
+                    Arg::with_name("path")
+                        .help("The path of the save that you want to verify.")
+                        .index(1)
+                        .required_unless("friendly"),
+                ),
+        )
         .get_matches();
 
     match matches.subcommand() {
@@ -101,6 +119,7 @@ fn main() {
         ("info", Some(sub_matches)) => get_save_info(sub_matches),
         ("list", Some(_sub_matches)) => list_tracked_saves(),
         ("update", Some(sub_matches)) => update_saves(sub_matches),
+        ("verify", Some(sub_matches)) => verify_save(sub_matches),
         _ => {}
     }
 }
@@ -242,6 +261,10 @@ fn list_tracked_saves() {
         }
         None => eprintln!("No saves in database."),
     }
+}
+
+fn verify_save(args: &ArgMatches) {
+    unimplemented!()
 }
 
 fn update_saves(_args: &ArgMatches) {
