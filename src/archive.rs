@@ -2,7 +2,7 @@ use crate::config::Config;
 use chrono::prelude::{NaiveDateTime, Utc};
 use std::fs::File;
 use std::hash::Hasher;
-use std::path::PathBuf;
+use std::path::Path;
 use tar::Archive as TarArchive;
 use tar::Builder as TarBuilder;
 use twox_hash::XxHash64;
@@ -29,9 +29,10 @@ impl Archive {
         }
     }
 
-    pub fn calc_hash(path: &PathBuf) -> u64 {
+    pub fn calc_hash<T: AsRef<Path>>(path: &T) -> u64 {
         use std::io::Read;
 
+        let path = path.as_ref();
         let config = Config::static_config();
         let seed = config.xxhash_seed as u64;
 
@@ -61,12 +62,12 @@ impl Archive {
         }
     }
 
-    pub fn compress_directory(source: &PathBuf, target: &PathBuf) {
+    pub fn compress_directory<T: AsRef<Path>>(source: &T, target: &T) {
         let tar_file = File::create(target).unwrap();
         let zstd_encoder = zstd::stream::Encoder::new(tar_file, 0).unwrap();
         let mut archive = TarBuilder::new(zstd_encoder);
 
-        let base_name = source.file_name().unwrap().to_str(); // TODO: Handle Unwrap
+        let base_name = source.as_ref().file_name().unwrap().to_str(); // TODO: Handle Unwrap
 
         match base_name {
             Some(name) => {
@@ -78,13 +79,13 @@ impl Archive {
             None => {
                 panic!(
                     "Failed to Convert the File name of {} into a Valid UTF-8 String",
-                    source.to_string_lossy()
+                    source.as_ref().to_string_lossy()
                 );
             }
         }
     }
 
-    pub fn compress_file(source: &PathBuf, target: &PathBuf) {
+    pub fn compress_file<T: AsRef<Path>>(source: &T, target: &T) {
         let mut file = File::open(source).unwrap(); // Reader
         let compressed_file = File::create(target).unwrap(); // Writer
         let mut zstd_encoder = zstd::stream::Encoder::new(compressed_file, 0).unwrap();
@@ -93,7 +94,7 @@ impl Archive {
         zstd_encoder.finish().unwrap();
     }
 
-    pub fn decompress_archive(source: &PathBuf, target: &PathBuf) {
+    pub fn decompress_archive<T: AsRef<Path>>(source: &T, target: &T) {
         let source_file = File::open(source).unwrap();
         let zstd_decoder = zstd::stream::Decoder::new(source_file).unwrap();
         let mut archive = TarArchive::new(zstd_decoder);
@@ -101,7 +102,7 @@ impl Archive {
         archive.unpack(target).unwrap();
     }
 
-    pub fn decompress_file(source: &PathBuf, target: &PathBuf) {
+    pub fn decompress_file<T: AsRef<Path>>(source: &T, target: &T) {
         let file = File::open(source).unwrap();
         let mut target_file = File::create(target).unwrap();
 
@@ -115,7 +116,7 @@ impl Archive {
 }
 
 pub mod query {
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     #[derive(Debug, Default, PartialEq, Eq)]
     pub struct SaveQuery {
@@ -141,8 +142,8 @@ pub mod query {
             self
         }
 
-        pub fn with_path(mut self, path: PathBuf) -> SaveQuery {
-            self.path = Some(path);
+        pub fn with_path<T: AsRef<Path>>(mut self, path: &T) -> SaveQuery {
+            self.path = Some(path.as_ref().to_owned());
             self
         }
 
@@ -185,8 +186,8 @@ pub mod query {
             self
         }
 
-        pub fn with_path(mut self, path: PathBuf) -> FileQuery {
-            self.path = Some(path);
+        pub fn with_path<T: AsRef<Path>>(mut self, path: &T) -> FileQuery {
+            self.path = Some(path.as_ref().to_owned());
             self
         }
 
@@ -234,6 +235,7 @@ mod tests {
     use crate::config::Config;
     use std::fs;
     use std::fs::File;
+    use std::path::PathBuf;
     use tempfile::TempDir;
 
     #[test]
@@ -365,7 +367,7 @@ mod tests {
             .with_id(1)
             .with_friendly_name("game1")
             .with_uuid("{uuid}")
-            .with_path(PathBuf::from("test_location"));
+            .with_path(&Path::new("test_location"));
 
         let expected = SaveQuery {
             id: Some(1),

@@ -2,7 +2,7 @@ use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::io::{BufReader, Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{RwLock, RwLockReadGuard};
 
 lazy_static! {
@@ -20,9 +20,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Config {
         let data_location = Self::get_default_data_path();
-        let db_location: PathBuf = [&data_location, &PathBuf::from("saves.db")]
-            .iter()
-            .collect();
+        let db_location = data_location.join("saves.db");
 
         Config {
             db_location,
@@ -81,19 +79,19 @@ impl Default for ConfigManager {
 }
 
 impl ConfigManager {
-    pub fn new(path: PathBuf) -> ConfigManager {
+    pub fn new<T: AsRef<Path>>(path: &T) -> ConfigManager {
         Self::create_config_directory(&path);
 
         ConfigManager {
-            config_file_path: path,
+            config_file_path: path.as_ref().to_owned(),
         }
     }
 
-    fn create_config_directory(path: &PathBuf) {
-        let parent = path.parent().unwrap_or_else(|| {
+    fn create_config_directory<T: AsRef<Path>>(path: &T) {
+        let parent = path.as_ref().parent().unwrap_or_else(|| {
             panic!(
                 "Unable to determine parent directory of {}",
-                path.to_string_lossy()
+                path.as_ref().to_string_lossy()
             )
         }); // TODO: Instead of panicking , handle this option as if it were a ConfigError
 
@@ -104,7 +102,8 @@ impl ConfigManager {
         Self::create_config_file(path);
     }
 
-    fn create_config_file(path: &PathBuf) {
+    fn create_config_file<T: AsRef<Path>>(path: &T) {
+        let path = path.as_ref();
         if !path.exists() {
             let config = Config::default();
 
@@ -198,7 +197,7 @@ mod tests {
         };
 
         Config::update(expected.clone());
-        let manager = ConfigManager::new(settings_path.clone());
+        let manager = ConfigManager::new(&settings_path);
         manager.write_to_file();
 
         let mut file = File::open(settings_path).unwrap();
@@ -219,7 +218,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let settings_path: PathBuf = [tmp_dir, &PathBuf::from("settings.toml")].iter().collect();
-        let manager = ConfigManager::new(settings_path.clone());
+        let manager = ConfigManager::new(&settings_path);
         let mut settings = File::create(&settings_path).unwrap();
 
         let expected_data_location = PathBuf::from("new_data_location");

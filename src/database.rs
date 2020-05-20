@@ -4,17 +4,17 @@ use crate::schema;
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use diesel::SqliteConnection;
-use std::path::PathBuf;
+use std::path::Path;
 
 pub struct Database {
     pool: Pool<ConnectionManager<SqliteConnection>>,
 }
 
 impl Database {
-    pub fn new(db_url: &PathBuf) -> Database {
+    pub fn new<T: AsRef<Path>>(db_url: &T) -> Database {
         Self::check_db_path(db_url);
 
-        let manager = ConnectionManager::new(db_url.to_str().unwrap());
+        let manager = ConnectionManager::new(db_url.as_ref().to_str().unwrap());
         let pool = Pool::builder()
             .max_size(15) // TODO: Make Configurable? Is this even necessary?
             .build(manager)
@@ -32,9 +32,9 @@ impl Database {
         embedded_migrations::run(conn).expect("Failed to run embedded database migrations.");
     }
 
-    fn check_db_path(path: &PathBuf) {
+    fn check_db_path<T: AsRef<Path>>(path: &T) {
         // Quick Check to make sure the parent directory of the db file exists
-        let parent = path.parent().unwrap();
+        let parent = path.as_ref().parent().unwrap();
 
         if !parent.exists() {
             std::fs::create_dir_all(parent).unwrap();
@@ -1137,8 +1137,8 @@ mod tests {
             .execute(&conn)
             .unwrap();
 
-        let path = PathBuf::from("/home/user/Documents/test_game/00.sav");
-        let query = FileQuery::new().with_path(path);
+        let path = Path::new("/home/user/Documents/test_game/00.sav");
+        let query = FileQuery::new().with_path(&path);
 
         let actual = db.get_file(query).unwrap();
 

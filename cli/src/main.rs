@@ -5,7 +5,7 @@ use save_sync::config::Config;
 use save_sync::models::{NewUser, Save, User};
 use save_sync::ConfigManager;
 use save_sync::Database;
-use std::path::PathBuf;
+use std::path::Path;
 
 fn main() {
     let _manager = ConfigManager::default(); // Initialize Config
@@ -137,7 +137,7 @@ fn add_save(args: &ArgMatches) {
             let username = (&config.local_username).clone();
             let db = Database::new(&config.db_location);
             let user = get_local_user(&db, &username);
-            let path = PathBuf::from(path);
+            let path = Path::new(path);
             let mut opt = SaveOptions {
                 friendly_name: None,
             };
@@ -172,7 +172,7 @@ fn get_save_info(_args: &ArgMatches) {
         }
     } else if let Some(path) = _args.value_of("path") {
         // get save by save path.
-        let query = SaveQuery::new().with_path(PathBuf::from(path));
+        let query = SaveQuery::new().with_path(&Path::new(path));
         let option = db.get_save(query);
 
         match option {
@@ -254,7 +254,7 @@ fn verify_save(args: &ArgMatches) {
         }
     } else if let Some(path) = args.value_of("path") {
         // get save by save path.
-        let query = SaveQuery::new().with_path(PathBuf::from(path));
+        let query = SaveQuery::new().with_path(&Path::new(path));
         let option = db.get_save(query);
 
         match option {

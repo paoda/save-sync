@@ -7,16 +7,21 @@ use save_sync::models::{NewFile, NewSave, Save, User};
 use save_sync::Archive as BaseArchive;
 use save_sync::Database;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 #[derive(Debug, Copy, Clone)]
 pub struct Archive {}
 
 impl Archive {
-    pub fn create_save(db: &Database, user: &User, path: &PathBuf, opt: SaveOptions) -> Result<()> {
-        if !path.exists() {
-            let path_str = path.to_string_lossy();
+    pub fn create_save<T: AsRef<Path>>(
+        db: &Database,
+        user: &User,
+        path: &T,
+        opt: SaveOptions,
+    ) -> Result<()> {
+        if !path.as_ref().exists() {
+            let path_str = path.as_ref().to_string_lossy();
             let err = anyhow!("{} does not exist on disk.", path_str);
             return Err(err);
         }
@@ -29,8 +34,11 @@ impl Archive {
             let path_str = backup_pathbuf.to_string_lossy();
             format!("The backup path \"{}\" was not UTF-8 compliant.", path_str)
         })?;
-        let save_path = path.to_str().with_context(|| {
-            format!("{} is not a UTF-8 compliant path.", path.to_string_lossy())
+        let save_path = path.as_ref().to_str().with_context(|| {
+            format!(
+                "{} is not a UTF-8 compliant path.",
+                path.as_ref().to_string_lossy()
+            )
         })?;
         let friendly_name = {
             match opt.friendly_name {
@@ -101,7 +109,7 @@ impl Archive {
             tracked_files_map.insert(file.file_path, file.file_hash);
         }
 
-        let save_path = PathBuf::from(&save.save_path);
+        let save_path = Path::new(&save.save_path);
         let current_save_files = Self::crawl(&save_path);
 
         for file_path in current_save_files {
@@ -130,9 +138,12 @@ impl Archive {
         Ok((new_files, changed_files))
     }
 
-    fn create_file(db: &Database, save: &Save, path: &PathBuf) -> Result<()> {
-        let file_path = path.to_str().with_context(|| {
-            format!("{} is not a UTF-8 compliant path.", path.to_string_lossy())
+    fn create_file<T: AsRef<Path>>(db: &Database, save: &Save, path: &T) -> Result<()> {
+        let file_path = path.as_ref().to_str().with_context(|| {
+            format!(
+                "{} is not a UTF-8 compliant path.",
+                path.as_ref().to_string_lossy()
+            )
         })?;
 
         let time = Utc::now().naive_utc();
@@ -153,23 +164,19 @@ impl Archive {
         Ok(())
     }
 
-    fn create_backup_path(path: &PathBuf, uuid: &str) -> Result<PathBuf> {
+    fn create_backup_path<T: AsRef<Path>>(path: &T, uuid: &str) -> Result<PathBuf> {
         let config = Config::static_config();
         let root_path = &config.data_location;
-        let name = path.file_name().with_context(|| {
-            let path_str = path.to_string_lossy();
+        let name = path.as_ref().file_name().with_context(|| {
+            let path_str = path.as_ref().to_string_lossy();
             format!("Unable to determine the name (last part) of {}", path_str)
         })?;
 
-        let mut backup_path = PathBuf::new();
-        backup_path.push(root_path);
-        backup_path.push(uuid);
-        backup_path.push(name);
-
+        let backup_path = Path::new(root_path).join(uuid).join(name);
         Ok(backup_path)
     }
 
-    fn crawl(path: &PathBuf) -> Vec<PathBuf> {
+    fn crawl<T: AsRef<Path>>(path: &T) -> Vec<PathBuf> {
         let mut files: Vec<PathBuf> = vec![];
         let result = fs::read_dir(path);
 
@@ -188,25 +195,25 @@ impl Archive {
         }
     }
 
-    fn copy_save_files(save: &NewSave, files: &[PathBuf]) -> Result<()> {
-        let backup_path = PathBuf::from(save.backup_path);
+    fn copy_save_files<T: AsRef<Path>>(save: &NewSave, files: &[T]) -> Result<()> {
+        let backup_path = Path::new(save.backup_path);
 
         for file_path in files {
-            Self::copy_file_to_backup_dir(&backup_path, &file_path)?;
+            Self::copy_file_to_backup_dir(&backup_path, &file_path.as_ref())?;
         }
 
         Ok(())
     }
 
-    fn copy_file_to_backup_dir(backup_path: &PathBuf, file_path: &PathBuf) -> Result<()> {
-        let common_component_name = backup_path.file_name().with_context(|| {
-            let path_str = backup_path.to_string_lossy();
+    fn copy_file_to_backup_dir<T: AsRef<Path>>(backup_path: &T, file_path: &T) -> Result<()> {
+        let common_component_name = backup_path.as_ref().file_name().with_context(|| {
+            let path_str = backup_path.as_ref().to_string_lossy();
             format!("Unable to determine file / directory name of {}", path_str)
         })?;
 
         let mut base = PathBuf::new();
 
-        for component in file_path.components() {
+        for component in file_path.as_ref().components() {
             base.push(component);
 
             if component.as_os_str() == common_component_name {
@@ -214,10 +221,10 @@ impl Archive {
             }
         }
 
-        let prefixless = file_path.strip_prefix(base)?;
-        let backup_destination = backup_path.join(prefixless);
+        let prefixless = file_path.as_ref().strip_prefix(base)?;
+        let backup_destination = backup_path.as_ref().join(prefixless);
 
-        if file_path.is_dir() {
+        if file_path.as_ref().is_dir() {
             // We just want to make sure that directory exists and re-create it if it doesnt
             if !backup_destination.exists() {
                 fs::create_dir_all(backup_destination)?;
