@@ -131,7 +131,7 @@ impl Archive {
         }
     }
 
-    fn copy_save_files(save: &NewSave, files: &Vec<PathBuf>) -> Result<()> {
+    fn copy_save_files(save: &NewSave, files: &[PathBuf]) -> Result<()> {
         let backup_path = PathBuf::from(save.backup_path);
 
         for file_path in files {
