@@ -49,6 +49,13 @@ impl Archive {
             modified_at: time,
         };
 
+        // After thinking for a couple minutes I have come to the conclusion that:
+        // Having useless files in the backup folder is better than having a save in the db
+        // which isn't actually backed up like we assume it to be
+        // Therefore we copy files and only upon success do we actually write to db.
+        let files = Self::crawl(path);
+        Self::copy_save_files(&new_save, &files)?;
+
         db.create_save(new_save);
         let query = SaveQuery::new().with_uuid(uuid);
         let save = db.get_save(query).with_context(|| {
@@ -56,9 +63,11 @@ impl Archive {
             format!("Unable to query {} from db.", path_str)
         })?;
 
-        let files = Self::crawl(path);
         for file in files {
-            Self::create_file(db, &save, &file)?;
+            if file.is_file() {
+                // FIXME: Empty Directories are on disk but not tracked in Database.
+                Self::create_file(db, &save, &file)?;
+            }
         }
 
         Ok(())
@@ -114,13 +123,64 @@ impl Archive {
                 for path in valid {
                     if path.is_dir() {
                         files.append(&mut Self::crawl(&path))
-                    } else {
-                        files.push(path)
                     }
+                    files.push(path) // If we just want files, we can filter later.
                 }
                 files
             }
         }
+    }
+
+    fn copy_save_files(save: &NewSave, files: &Vec<PathBuf>) -> Result<()> {
+        let backup_path = PathBuf::from(save.backup_path);
+
+        for file_path in files {
+            Self::copy_file_to_backup_dir(&backup_path, &file_path)?;
+        }
+
+        Ok(())
+    }
+
+    fn copy_file_to_backup_dir(backup_path: &PathBuf, file_path: &PathBuf) -> Result<()> {
+        let common_component_name = backup_path.file_name().with_context(|| {
+            let path_str = backup_path.to_string_lossy();
+            format!("Unable to determine file / directory name of {}", path_str)
+        })?;
+
+        let mut base = PathBuf::new();
+
+        for component in file_path.components() {
+            base.push(component);
+
+            if component.as_os_str() == common_component_name {
+                break;
+            }
+        }
+
+        let prefixless = file_path.strip_prefix(base)?;
+        let backup_destination = backup_path.join(prefixless);
+
+        if file_path.is_dir() {
+            // We just want to make sure that directory exists and re-create it if it doesnt
+            if !backup_destination.exists() {
+                fs::create_dir_all(backup_destination)?;
+            }
+        } else {
+            // I assume if it's not a directory it's a file
+            let backup_destination_parent = backup_destination.parent().with_context(|| {
+                let path_str = backup_destination.to_string_lossy();
+                format!("Unable to determine parent of {}", path_str)
+            })?;
+
+            if !backup_destination_parent.exists() {
+                // It's good to be on the safer side.
+                fs::create_dir_all(backup_destination_parent)?;
+            }
+
+            fs::copy(file_path, backup_destination)?;
+        }
+
+        Ok(())
     }
 }
 
