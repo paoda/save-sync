@@ -117,7 +117,7 @@ fn main() {
 
     match matches.subcommand() {
         ("add", Some(sub_matches)) => add_save(sub_matches),
-        ("delete", Some(sub_matches)) => del_path(sub_matches),
+        ("delete", Some(sub_matches)) => del_save(sub_matches),
         ("info", Some(sub_matches)) => get_save_info(sub_matches),
         ("list", Some(_sub_matches)) => list_tracked_saves(),
         ("update", Some(sub_matches)) => update_saves(sub_matches),
@@ -128,40 +128,61 @@ fn main() {
 
 // Maybe move these functions into a separate module?
 fn add_save(args: &ArgMatches) {
+    use cli::archive::options::SaveOptions;
+
     let config = Config::static_config();
+    let path = args.value_of("path").unwrap(); // required
 
-    match args.value_of("path") {
-        Some(path) => {
-            use cli::archive::options::SaveOptions;
+    let username = (&config.local_username).clone();
+    let db = Database::new(&config.db_location);
+    let user = get_local_user(&db, &username);
+    let path = PathBuf::from(path);
+    let mut opt = SaveOptions {
+        friendly_name: None,
+    };
 
-            let username = (&config.local_username).clone();
-            let db = Database::new(&config.db_location);
-            let user = get_local_user(&db, &username);
-            let path = Path::new(path);
-            let mut opt = SaveOptions {
-                friendly_name: None,
-            };
-
-            if let Some(name) = args.value_of("friendly") {
-                opt.friendly_name = Some(name)
-            }
-
-            Archive::create_save(&db, &user, &path, opt).expect("Unable to create Save");
-        }
-        None => eprintln!("No save path was provided."),
+    if let Some(name) = args.value_of("friendly") {
+        opt.friendly_name = Some(name)
     }
+    
+    Archive::create_save(&db, &user, &path, opt).expect("Unable to create Save");
 }
 
-fn del_path(_args: &ArgMatches) {
-    unimplemented!()
-}
-
-fn get_save_info(_args: &ArgMatches) {
+fn del_save(args: &ArgMatches) {
     let config = Config::static_config();
     let db = Database::new(&config.db_location);
     let mut save: Option<Save> = None;
 
-    if let Some(name) = _args.value_of("friendly") {
+    if let Some(name) = args.value_of("friendly") {
+        let query = SaveQuery::new().with_friendly_name(name);
+        let option = db.get_save(query);
+
+        match option {
+            Some(result) => save = Some(result),
+            None => eprintln!("{} is not related to any save in the database.", name),
+        }
+    } else {
+        let path = args.value_of("path").unwrap(); // Required if friendly is not set
+        let query = SaveQuery::new().with_path(PathBuf::from(path));
+        let option = db.get_save(query);
+
+        match option {
+            Some(result) => save = Some(result),
+            None => eprintln!("{} is not a tracked save path in the database.", path),
+        }
+    }
+
+    if let Some(save) = save {
+        Archive::delete_save(&db, &save).expect("Error while trying to delete Save");
+    }
+}
+
+fn get_save_info(args: &ArgMatches) {
+    let config = Config::static_config();
+    let db = Database::new(&config.db_location);
+    let mut save: Option<Save> = None;
+
+    if let Some(name) = args.value_of("friendly") {
         // Get save by friendly name.
         let query = SaveQuery::new().with_friendly_name(name);
         let option = db.get_save(query);
@@ -170,9 +191,9 @@ fn get_save_info(_args: &ArgMatches) {
             Some(result) => save = Some(result),
             None => eprintln!("There was no save labelled as \"{}\" in the db.", name),
         }
-    } else if let Some(path) = _args.value_of("path") {
-        // get save by save path.
-        let query = SaveQuery::new().with_path(&Path::new(path));
+    } else {
+        let path = args.value_of("path").unwrap(); // Required if friendly is not set
+        let query = SaveQuery::new().with_path(PathBuf::from(path));
         let option = db.get_save(query);
 
         match option {
@@ -182,8 +203,6 @@ fn get_save_info(_args: &ArgMatches) {
                 path
             ),
         }
-    } else {
-        eprintln!("No friendly name or save path provided.")
     }
 
     if let Some(save) = save {
@@ -252,9 +271,9 @@ fn verify_save(args: &ArgMatches) {
             Some(result) => save = Some(result),
             None => eprintln!("There was no save labelled as \"{}\" in the db.", name),
         }
-    } else if let Some(path) = args.value_of("path") {
-        // get save by save path.
-        let query = SaveQuery::new().with_path(&Path::new(path));
+    } else {
+        let path = args.value_of("path").unwrap(); // Required unless friendly is set.
+        let query = SaveQuery::new().with_path(PathBuf::from(path));
         let option = db.get_save(query);
 
         match option {
@@ -264,8 +283,6 @@ fn verify_save(args: &ArgMatches) {
                 path
             ),
         }
-    } else {
-        return eprintln!("No friendly name or save path provided."); // I don't think this is ever actually run.
     }
 
     if let Some(save) = save {
