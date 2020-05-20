@@ -136,7 +136,7 @@ fn add_save(args: &ArgMatches) {
     let username = (&config.local_username).clone();
     let db = Database::new(&config.db_location);
     let user = get_local_user(&db, &username);
-    let path = PathBuf::from(path);
+    let path = Path::new(path);
     let mut opt = SaveOptions {
         friendly_name: None,
     };
@@ -144,7 +144,7 @@ fn add_save(args: &ArgMatches) {
     if let Some(name) = args.value_of("friendly") {
         opt.friendly_name = Some(name)
     }
-    
+
     Archive::create_save(&db, &user, &path, opt).expect("Unable to create Save");
 }
 
@@ -163,7 +163,7 @@ fn del_save(args: &ArgMatches) {
         }
     } else {
         let path = args.value_of("path").unwrap(); // Required if friendly is not set
-        let query = SaveQuery::new().with_path(PathBuf::from(path));
+        let query = SaveQuery::new().with_path(&Path::new(path));
         let option = db.get_save(query);
 
         match option {
@@ -193,7 +193,7 @@ fn get_save_info(args: &ArgMatches) {
         }
     } else {
         let path = args.value_of("path").unwrap(); // Required if friendly is not set
-        let query = SaveQuery::new().with_path(PathBuf::from(path));
+        let query = SaveQuery::new().with_path(&Path::new(path));
         let option = db.get_save(query);
 
         match option {
@@ -273,7 +273,7 @@ fn verify_save(args: &ArgMatches) {
         }
     } else {
         let path = args.value_of("path").unwrap(); // Required unless friendly is set.
-        let query = SaveQuery::new().with_path(PathBuf::from(path));
+        let query = SaveQuery::new().with_path(&Path::new(path));
         let option = db.get_save(query);
 
         match option {
