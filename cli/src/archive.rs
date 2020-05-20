@@ -73,6 +73,63 @@ impl Archive {
         Ok(())
     }
 
+    pub fn verify_save(db: &Database, save: &Save) -> Result<(Vec<PathBuf>, Vec<PathBuf>)> {
+        use save_sync::archive::query::FileQuery;
+        use std::collections::HashMap;
+
+        let mut new_files: Vec<PathBuf> = vec![];
+        let mut changed_files: Vec<PathBuf> = vec![];
+
+        let query = FileQuery::new().with_save_id(save.id);
+        let tracked_files = db.get_files(query).with_context(|| {
+            if save.friendly_name.is_empty() {
+                format!(
+                    "Save with path \"{}\" does not have any files associated with it.",
+                    save.save_path
+                )
+            } else {
+                format!(
+                    "{} does not have any files associated with it.",
+                    save.friendly_name
+                )
+            }
+        })?;
+
+        let mut tracked_files_map: HashMap<String, Vec<u8>> = HashMap::new();
+
+        for file in tracked_files {
+            tracked_files_map.insert(file.file_path, file.file_hash);
+        }
+
+        let save_path = PathBuf::from(&save.save_path);
+        let current_save_files = Self::crawl(&save_path);
+
+        for file_path in current_save_files {
+            if file_path.is_file() {
+                let string = file_path.to_str().with_context(|| {
+                    let path_str = file_path.to_string_lossy();
+                    format!("Unable to convert {} to a UTF-8 String", path_str)
+                })?;
+
+                match tracked_files_map.get(string) {
+                    Some(expected) => {
+                        let actual = {
+                            let hash_num = BaseArchive::calc_hash(&file_path);
+                            BaseArchive::u64_to_byte_vec(hash_num)
+                        };
+
+                        if actual != *expected {
+                            changed_files.push(file_path)
+                        }
+                    }
+                    None => new_files.push(file_path),
+                }
+            }
+        }
+
+        Ok((new_files, changed_files))
+    }
+
     fn create_file(db: &Database, save: &Save, path: &PathBuf) -> Result<()> {
         let file_path = path.to_str().with_context(|| {
             format!("{} is not a UTF-8 compliant path.", path.to_string_lossy())

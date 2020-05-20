@@ -8,6 +8,8 @@ use save_sync::Database;
 use std::path::PathBuf;
 
 fn main() {
+    let _manager = ConfigManager::default(); // Initialize Config
+
     let matches = App::new("Save Sync")
         .version("0.1.0")
         .author("paoda <musukarekai@gmail.com>")
@@ -93,6 +95,24 @@ fn main() {
                         .index(1),
                 ),
         )
+        .subcommand(
+            SubCommand::with_name("verify")
+                .about("Verify that Save Backup is up to date.")
+                .arg(
+                    Arg::with_name("friendly")
+                        .short("f")
+                        .long("friendly")
+                        .value_name("NAME")
+                        .takes_value(true)
+                        .help("The friendly name of the save that you want to verify"),
+                )
+                .arg(
+                    Arg::with_name("path")
+                        .help("The path of the save that you want to verify.")
+                        .index(1)
+                        .required_unless("friendly"),
+                ),
+        )
         .get_matches();
 
     match matches.subcommand() {
@@ -101,13 +121,13 @@ fn main() {
         ("info", Some(sub_matches)) => get_save_info(sub_matches),
         ("list", Some(_sub_matches)) => list_tracked_saves(),
         ("update", Some(sub_matches)) => update_saves(sub_matches),
+        ("verify", Some(sub_matches)) => verify_save(sub_matches),
         _ => {}
     }
 }
 
 // Maybe move these functions into a separate module?
 fn add_save(args: &ArgMatches) {
-    let _manager = ConfigManager::default();
     let config = Config::static_config();
 
     match args.value_of("path") {
@@ -137,7 +157,6 @@ fn del_path(_args: &ArgMatches) {
 }
 
 fn get_save_info(_args: &ArgMatches) {
-    let _manager = ConfigManager::default();
     let config = Config::static_config();
     let db = Database::new(&config.db_location);
     let mut save: Option<Save> = None;
@@ -191,34 +210,9 @@ fn get_save_info(_args: &ArgMatches) {
         println!("Created: {}", save.created_at);
         println!("Modified: {}", save.modified_at);
     }
-
-    // SubCommand::with_name("info")
-    //             .about("Display information about saved data.")
-    //             .arg(
-    //                 Arg::with_name("friendly")
-    //                     .short("f")
-    //                     .long("friendly")
-    //                     .value_name("NAME")
-    //                     .takes_value(true)
-    //                     .help("The friendly name of the saved data."),
-    //             )
-    //             .arg(
-    //                 Arg::with_name("path")
-    //                     .help("the path of the saved data.")
-    //                     .index(1)
-    //                     .required_unless("friendly"),
-    //             )
-    //             .arg(
-    //                 Arg::with_name("delta")
-    //                     .short("d")
-    //                     .long("delta")
-    //                     .help("Determines which files have changed since last backup."),
-    //             ),
-    //     )
 }
 
 fn list_tracked_saves() {
-    let _manager = ConfigManager::default();
     let config = Config::static_config();
     let db = Database::new(&config.db_location);
     let user = get_local_user(&db, &config.local_username);
@@ -241,6 +235,67 @@ fn list_tracked_saves() {
             }
         }
         None => eprintln!("No saves in database."),
+    }
+}
+
+fn verify_save(args: &ArgMatches) {
+    let config = Config::static_config();
+    let db = Database::new(&config.db_location);
+    let mut save: Option<Save> = None;
+
+    if let Some(name) = args.value_of("friendly") {
+        // Get save by friendly name.
+        let query = SaveQuery::new().with_friendly_name(name);
+        let option = db.get_save(query);
+
+        match option {
+            Some(result) => save = Some(result),
+            None => eprintln!("There was no save labelled as \"{}\" in the db.", name),
+        }
+    } else if let Some(path) = args.value_of("path") {
+        // get save by save path.
+        let query = SaveQuery::new().with_path(PathBuf::from(path));
+        let option = db.get_save(query);
+
+        match option {
+            Some(result) => save = Some(result),
+            None => eprintln!(
+                "\"{}\" is not a path which is stored in the database.",
+                path
+            ),
+        }
+    } else {
+        return eprintln!("No friendly name or save path provided."); // I don't think this is ever actually run.
+    }
+
+    if let Some(save) = save {
+        let (new_files, changed_files) =
+            Archive::verify_save(&db, &save).expect("Unable to Verify Integrity of Save");
+
+        if new_files.is_empty() && changed_files.is_empty() {
+            if save.friendly_name.is_empty() {
+                println!("No changed were detected in {}", save.save_path)
+            } else {
+                println!("{}'s backup is up to date.", save.friendly_name)
+            }
+        } else {
+            println!("The Backup and the current save differ");
+            println!();
+
+            if !new_files.is_empty() {
+                println!("New Files:");
+                for file in new_files {
+                    println!("{}", file.to_string_lossy());
+                }
+            }
+
+            if !changed_files.is_empty() {
+                println!("Changed Files:");
+                for file in changed_files {
+                    println!("{}", file.to_string_lossy());
+                }
+            }
+        }
     }
 }
 
