@@ -7,7 +7,7 @@ use save_sync::models::{NewFile, NewSave, Save, User};
 use save_sync::Archive as BaseArchive;
 use save_sync::Database;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 #[derive(Debug, Copy, Clone)]
@@ -70,6 +70,34 @@ impl Archive {
             }
         }
 
+        Ok(())
+    }
+
+    pub fn delete_save(db: &Database, save: &Save) -> Result<()> {
+        // We'd rather have abandoned files than a save with missing backup files
+        // Therefore we should delete the save first, and then files later.
+        use save_sync::archive::query::FileQuery;
+
+        let backup_path = Path::new(&save.backup_path)
+            .parent()
+            .with_context(|| format!("Unable to determine parent of {}", save.backup_path))?;
+
+        // Delete Related files in database first due to Database Constraints
+        let files_query = FileQuery::new().with_save_id(save.id);
+        let option = db.get_files(files_query);
+
+        if let Some(files) = option {
+            for file in files {
+                let file_query = FileQuery::new().with_id(file.id);
+                db.delete_file(file_query);
+            }
+        }
+
+        let save_query = SaveQuery::new().with_id(save.id);
+        db.delete_save(save_query);
+
+        // Now Delete the Files on disk
+        fs::remove_dir_all(backup_path)?;
         Ok(())
     }
 
