@@ -196,8 +196,8 @@ mod tests {
             local_username: "User1".to_string(),
         };
 
-        Config::update(expected.clone());
         let manager = ConfigManager::new(&settings_path);
+        Config::update(expected.clone());
         manager.write_to_file();
 
         let mut file = File::open(settings_path).unwrap();
