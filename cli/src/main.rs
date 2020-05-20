@@ -151,14 +151,14 @@ fn add_save(args: &ArgMatches) {
 fn del_save(args: &ArgMatches) {
     let config = Config::static_config();
     let db = Database::new(&config.db_location);
-    let save: Save;
+    let mut save: Option<Save> = None;
 
     if let Some(name) = args.value_of("friendly") {
         let query = SaveQuery::new().with_friendly_name(name);
         let option = db.get_save(query);
 
         match option {
-            Some(result) => save = result,
+            Some(result) => save = Some(result),
             None => eprintln!("{} is not related to any save in the database.", name),
         }
     } else {
@@ -167,12 +167,14 @@ fn del_save(args: &ArgMatches) {
         let option = db.get_save(query);
 
         match option {
-            Some(result) => save = result,
+            Some(result) => save = Some(result),
             None => eprintln!("{} is not a tracked save path in the database.", path),
         }
     }
 
-    unimplemented!()
+    if let Some(save) = save {
+        Archive::delete_save(&db, &save).expect("Error while trying to delete Save");
+    }
 }
 
 fn get_save_info(args: &ArgMatches) {
