@@ -8,6 +8,8 @@ use save_sync::Database;
 use std::path::PathBuf;
 
 fn main() {
+    let _manager = ConfigManager::default(); // Initialize Config
+
     let matches = App::new("Save Sync")
         .version("0.1.0")
         .author("paoda <musukarekai@gmail.com>")
@@ -126,7 +128,6 @@ fn main() {
 
 // Maybe move these functions into a separate module?
 fn add_save(args: &ArgMatches) {
-    let _manager = ConfigManager::default();
     let config = Config::static_config();
 
     match args.value_of("path") {
@@ -156,7 +157,6 @@ fn del_path(_args: &ArgMatches) {
 }
 
 fn get_save_info(_args: &ArgMatches) {
-    let _manager = ConfigManager::default();
     let config = Config::static_config();
     let db = Database::new(&config.db_location);
     let mut save: Option<Save> = None;
@@ -210,34 +210,9 @@ fn get_save_info(_args: &ArgMatches) {
         println!("Created: {}", save.created_at);
         println!("Modified: {}", save.modified_at);
     }
-
-    // SubCommand::with_name("info")
-    //             .about("Display information about saved data.")
-    //             .arg(
-    //                 Arg::with_name("friendly")
-    //                     .short("f")
-    //                     .long("friendly")
-    //                     .value_name("NAME")
-    //                     .takes_value(true)
-    //                     .help("The friendly name of the saved data."),
-    //             )
-    //             .arg(
-    //                 Arg::with_name("path")
-    //                     .help("the path of the saved data.")
-    //                     .index(1)
-    //                     .required_unless("friendly"),
-    //             )
-    //             .arg(
-    //                 Arg::with_name("delta")
-    //                     .short("d")
-    //                     .long("delta")
-    //                     .help("Determines which files have changed since last backup."),
-    //             ),
-    //     )
 }
 
 fn list_tracked_saves() {
-    let _manager = ConfigManager::default();
     let config = Config::static_config();
     let db = Database::new(&config.db_location);
     let user = get_local_user(&db, &config.local_username);
@@ -264,6 +239,9 @@ fn list_tracked_saves() {
 }
 
 fn verify_save(args: &ArgMatches) {
+    let config = Config::static_config();
+    let db = Database::new(&config.db_location);
+    let user = get_local_user(&db, &config.local_username);
     unimplemented!()
 }
 
