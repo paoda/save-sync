@@ -92,7 +92,8 @@ fn main() {
                 .arg(
                     Arg::with_name("path")
                         .help("The path of the save which will be updated")
-                        .index(1),
+                        .index(1)
+                        .required_unless("friendly"),
                 ),
         )
         .subcommand(
@@ -173,7 +174,7 @@ fn del_save(args: &ArgMatches) {
     }
 
     if let Some(save) = save {
-        Archive::delete_save(&db, &save).expect("Error while trying to delete Save");
+        Archive::delete_save(&db, &save).expect("Error while trying to delete save.");
     }
 }
 
@@ -316,8 +317,41 @@ fn verify_save(args: &ArgMatches) {
     }
 }
 
-fn update_saves(_args: &ArgMatches) {
-    unimplemented!()
+fn update_saves(args: &ArgMatches) {
+    let config = Config::static_config();
+    let db = Database::new(&config.db_location);
+    let mut save: Option<Save> = None;
+
+    if let Some(name) = args.value_of("friendly") {
+        let query = SaveQuery::new().with_friendly_name(name);
+        let option = db.get_save(query);
+
+        match option {
+            Some(result) => save = Some(result),
+            None => eprintln!("{} is not related to any save in the database.", name),
+        }
+    } else {
+        let path = args.value_of("path").unwrap();
+        let query = SaveQuery::new().with_path(&Path::new(path));
+        let option = db.get_save(query);
+
+        match option {
+            Some(result) => save = Some(result),
+            None => eprintln!("{} is not a tracked save in the database.", path),
+        }
+    }
+
+    if let Some(save) = save {
+        let option = Archive::update_save(&db, &save).expect("Error while trying to update save.");
+
+        match option {
+            Some(changelog) => {
+                print!("Update successful:");
+                println!("{}", changelog)
+            }
+            None => println!("Backup is alredy up to date. There is nothing to do."),
+        }
+    }
 }
 
 fn get_local_user(db: &Database, username: &str) -> User {
