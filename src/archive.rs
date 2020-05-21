@@ -62,7 +62,7 @@ impl Archive {
         }
     }
 
-    pub fn compress_directory<T: AsRef<Path>>(source: &T, target: &T) {
+    pub fn compress_directory<T: AsRef<Path>, U: AsRef<Path>>(source: &T, target: &U) {
         let tar_file = File::create(target).unwrap();
         let zstd_encoder = zstd::stream::Encoder::new(tar_file, 0).unwrap();
         let mut archive = TarBuilder::new(zstd_encoder);
@@ -85,7 +85,7 @@ impl Archive {
         }
     }
 
-    pub fn compress_file<T: AsRef<Path>>(source: &T, target: &T) {
+    pub fn compress_file<T: AsRef<Path>, U: AsRef<Path>>(source: &T, target: &U) {
         let mut file = File::open(source).unwrap(); // Reader
         let compressed_file = File::create(target).unwrap(); // Writer
         let mut zstd_encoder = zstd::stream::Encoder::new(compressed_file, 0).unwrap();
@@ -94,7 +94,7 @@ impl Archive {
         zstd_encoder.finish().unwrap();
     }
 
-    pub fn decompress_archive<T: AsRef<Path>>(source: &T, target: &T) {
+    pub fn decompress_archive<T: AsRef<Path>, U: AsRef<Path>>(source: &T, target: &U) {
         let source_file = File::open(source).unwrap();
         let zstd_decoder = zstd::stream::Decoder::new(source_file).unwrap();
         let mut archive = TarArchive::new(zstd_decoder);
@@ -102,7 +102,7 @@ impl Archive {
         archive.unpack(target).unwrap();
     }
 
-    pub fn decompress_file<T: AsRef<Path>>(source: &T, target: &T) {
+    pub fn decompress_file<T: AsRef<Path>, U: AsRef<Path>>(source: &T, target: &U) {
         let file = File::open(source).unwrap();
         let mut target_file = File::create(target).unwrap();
 
