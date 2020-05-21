@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
 use options::*;
-use save_sync::archive::query::SaveQuery;
+use save_sync::archive::query::{FileQuery, SaveQuery};
 use save_sync::config::Config;
 use save_sync::models::{NewFile, NewSave, Save, User};
 use save_sync::Archive as BaseArchive;
@@ -84,8 +84,6 @@ impl Archive {
     pub fn delete_save(db: &Database, save: &Save) -> Result<()> {
         // We'd rather have abandoned files than a save with missing backup files
         // Therefore we should delete the save first, and then files later.
-        use save_sync::archive::query::FileQuery;
-
         let backup_path = Path::new(&save.backup_path)
             .parent()
             .with_context(|| format!("Unable to determine parent of {}", save.backup_path))?;
@@ -109,8 +107,33 @@ impl Archive {
         Ok(())
     }
 
+    pub fn update_save(db: &Database, save: &Save) -> Result<Option<String>> {
+        let (new_files, changed_files) = Self::verify_save(db, save)?;
+        let backup_path = Path::new(&save.backup_path);
+        let mut changelog = String::new();
+
+        if new_files.is_empty() && changed_files.is_empty() {
+            return Ok(None);
+        }
+
+        for file_path in new_files {
+            changelog.push_str(&format!("\nNew: {}", file_path.to_string_lossy()));
+
+            Self::copy_file_to_backup_dir(&backup_path, &file_path)?;
+            Self::create_file(db, save, &file_path)?;
+        }
+
+        for file_path in changed_files {
+            changelog.push_str(&format!("\nUpdated: {}", file_path.to_string_lossy()));
+
+            Self::copy_file_to_backup_dir(&backup_path, &file_path)?;
+            Self::update_file(db, &file_path)?;
+        }
+
+        Ok(Some(changelog))
+    }
+
     pub fn verify_save(db: &Database, save: &Save) -> Result<(Vec<PathBuf>, Vec<PathBuf>)> {
-        use save_sync::archive::query::FileQuery;
         use std::collections::HashMap;
 
         let mut new_files: Vec<PathBuf> = vec![];
@@ -192,6 +215,34 @@ impl Archive {
         Ok(())
     }
 
+    fn update_file<T: AsRef<Path>>(db: &Database, path: &T) -> Result<()> {
+        use save_sync::models::EditFile;
+
+        let query = FileQuery::new().with_path(path);
+        let time = Utc::now().naive_utc();
+        let original_file = db.get_file(query).with_context(|| {
+            let path_str = path.as_ref().to_string_lossy();
+            format!(
+                "Unable to retrieve file with path {} from the database.",
+                path_str
+            )
+        })?;
+        let file_hash = &{
+            let hash_num = BaseArchive::calc_hash(path);
+            BaseArchive::u64_to_byte_vec(hash_num)
+        };
+
+        let edit = EditFile {
+            id: original_file.id,
+            file_hash,
+            modified_at: time,
+        };
+
+        db.update_file(edit);
+
+        Ok(())
+    }
+
     fn create_backup_path<T: AsRef<Path>>(path: &T, uuid: &str) -> Result<PathBuf> {
         let config = Config::static_config();
         let root_path = &config.data_location;
@@ -233,7 +284,10 @@ impl Archive {
         Ok(())
     }
 
-    fn copy_file_to_backup_dir<T: AsRef<Path>>(backup_path: &T, file_path: &T) -> Result<()> {
+    fn copy_file_to_backup_dir<T: AsRef<Path>, U: AsRef<Path>>(
+        backup_path: &T,
+        file_path: &U,
+    ) -> Result<()> {
         let common_component_name = backup_path.as_ref().file_name().with_context(|| {
             let path_str = backup_path.as_ref().to_string_lossy();
             format!("Unable to determine file / directory name of {}", path_str)
