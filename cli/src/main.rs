@@ -97,19 +97,19 @@ fn main() {
                 ),
         )
         .subcommand(
-            SubCommand::with_name("verify")
-                .about("Verify that Save Backup is up to date.")
+            SubCommand::with_name("check")
+                .about("Check that a save backup is up to date.")
                 .arg(
                     Arg::with_name("friendly")
                         .short("f")
                         .long("friendly")
                         .value_name("NAME")
                         .takes_value(true)
-                        .help("The friendly name of the save that you want to verify"),
+                        .help("The friendly name of the save that you want to check"),
                 )
                 .arg(
                     Arg::with_name("path")
-                        .help("The path of the save that you want to verify.")
+                        .help("The path of the save that you want to check.")
                         .index(1)
                         .required_unless("friendly"),
                 ),
@@ -122,7 +122,7 @@ fn main() {
         ("info", Some(sub_matches)) => get_save_info(sub_matches),
         ("list", Some(_sub_matches)) => list_tracked_saves(),
         ("update", Some(sub_matches)) => update_saves(sub_matches),
-        ("verify", Some(sub_matches)) => verify_save(sub_matches),
+        ("check", Some(sub_matches)) => check_save(sub_matches),
         _ => {}
     }
 }
@@ -264,7 +264,7 @@ fn list_tracked_saves() {
     }
 }
 
-fn verify_save(args: &ArgMatches) {
+fn check_save(args: &ArgMatches) {
     let config = Config::static_config();
     let db = Database::new(&config.db_location);
     let mut save: Option<Save> = None;
@@ -296,7 +296,7 @@ fn verify_save(args: &ArgMatches) {
 
     if let Some(save) = save {
         let (new_files, changed_files) =
-            Archive::verify_save(&db, &save).expect("Unable to Verify Integrity of Save");
+            Archive::check_save(&db, &save).expect("Unable to Verify Integrity of Save");
 
         if new_files.is_empty() && changed_files.is_empty() {
             if save.friendly_name.is_empty() {

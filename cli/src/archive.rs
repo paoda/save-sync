@@ -108,7 +108,7 @@ impl Archive {
     }
 
     pub fn update_save(db: &Database, save: &Save) -> Result<Option<String>> {
-        let (new_files, changed_files) = Self::verify_save(db, save)?;
+        let (new_files, changed_files) = Self::check_save(db, save)?;
         let backup_path = Path::new(&save.backup_path);
         let mut changelog = String::new();
 
@@ -133,7 +133,7 @@ impl Archive {
         Ok(Some(changelog))
     }
 
-    pub fn verify_save(db: &Database, save: &Save) -> Result<(Vec<PathBuf>, Vec<PathBuf>)> {
+    pub fn check_save(db: &Database, save: &Save) -> Result<(Vec<PathBuf>, Vec<PathBuf>)> {
         use std::collections::HashMap;
 
         let mut new_files: Vec<PathBuf> = vec![];
