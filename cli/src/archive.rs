@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
+use delta::{FileChange, SaveFileUpdate};
 use options::*;
 use save_sync::archive::query::{FileQuery, SaveQuery};
 use save_sync::config::Config;
@@ -108,32 +109,117 @@ impl Archive {
     }
 
     pub fn update_save(db: &Database, save: &Save) -> Result<Option<String>> {
-        let (new_files, changed_files) = Self::check_save(db, save)?;
+        let changes = Self::check_save(db, save)?;
         let backup_path = Path::new(&save.backup_path);
         let mut changelog = String::new();
 
-        if new_files.is_empty() && changed_files.is_empty() {
+        if changes.is_empty() {
             return Ok(None);
         }
 
-        for file_path in new_files {
-            changelog.push_str(&format!("\nNew: {}", file_path.to_string_lossy()));
+        for log in changes {
+            let file_path = log.path;
+            match log.change {
+                FileChange::Missing => {
+                    changelog.push_str(&format!(
+                        "\nMissing (NOW DELETING!!!): {}",
+                        file_path.to_string_lossy()
+                    ));
 
-            Self::copy_file_to_backup_dir(&backup_path, &file_path)?;
-            Self::create_file(db, save, &file_path)?;
-        }
+                    //TODO: Be a bit more careful about deleting files
+                    let query = FileQuery::new().with_path(&file_path);
 
-        for file_path in changed_files {
-            changelog.push_str(&format!("\nUpdated: {}", file_path.to_string_lossy()));
+                    db.delete_file(query);
+                    let backup_path = Self::get_backup_path(&file_path, &backup_path)?;
+                    fs::remove_file(backup_path)?;
+                }
+                FileChange::New => {
+                    changelog.push_str(&format!("\nNew: {}", file_path.to_string_lossy()));
 
-            Self::copy_file_to_backup_dir(&backup_path, &file_path)?;
-            Self::update_file(db, &file_path)?;
+                    Self::copy_file_to_backup_dir(&backup_path, &file_path)?;
+                    Self::create_file(db, save, &file_path)?;
+                }
+                FileChange::Update => {
+                    changelog.push_str(&format!("\nUpdated: {}", file_path.to_string_lossy()));
+
+                    Self::copy_file_to_backup_dir(&backup_path, &file_path)?;
+                    Self::update_file(db, &file_path)?;
+                }
+            }
         }
 
         Ok(Some(changelog))
     }
 
-    pub fn check_save(db: &Database, save: &Save) -> Result<(Vec<PathBuf>, Vec<PathBuf>)> {
+    pub fn check_save(db: &Database, save: &Save) -> Result<Vec<SaveFileUpdate>> {
+        use std::collections::HashMap;
+
+        let mut result = vec![];
+        let query = FileQuery::new().with_save_id(save.id);
+        let tracked = db.get_files(query).with_context(|| {
+            let path = &save.save_path;
+            let name = &save.friendly_name;
+
+            if name.is_empty() {
+                format!("{} does not have any files associated with it.", path)
+            } else {
+                format!("{} does not have any files associated with it.", name)
+            }
+        })?;
+
+        let path = Path::new(&save.save_path);
+        let current = Self::crawl(&path);
+
+        // Check For Missing & Build
+        let mut tracked_hash_map = HashMap::new();
+
+        for file in tracked {
+            // While we're at it, build a HashMap
+            // FIXME: Can we do this with less allocations?
+            tracked_hash_map.insert(file.file_path.clone(), file.file_hash.clone());
+
+            // if current tracked file does not match any on disk
+            if !current.iter().any(|path| file == *path) {
+                result.push(SaveFileUpdate {
+                    change: FileChange::Missing,
+                    path: PathBuf::from(file.file_path),
+                })
+            }
+        }
+
+        for file_path in current {
+            if file_path.is_file() {
+                let file_str = file_path.to_str().context(format!(
+                    "Unable to convert {} to a UTF-8 String",
+                    file_path.to_string_lossy()
+                ))?;
+
+                match tracked_hash_map.get(file_str) {
+                    Some(expected) => {
+                        let actual = {
+                            let num = BaseArchive::calc_hash(&file_path);
+                            BaseArchive::u64_to_byte_vec(num)
+                        };
+
+                        if actual != *expected {
+                            result.push(SaveFileUpdate {
+                                change: FileChange::Update,
+                                path: file_path,
+                            })
+                        }
+                    }
+                    None => result.push(SaveFileUpdate {
+                        change: FileChange::New,
+                        path: file_path,
+                    }),
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
+    pub fn old_check_save(db: &Database, save: &Save) -> Result<(Vec<PathBuf>, Vec<PathBuf>)> {
         use std::collections::HashMap;
 
         let mut new_files: Vec<PathBuf> = vec![];
@@ -284,10 +370,10 @@ impl Archive {
         Ok(())
     }
 
-    fn copy_file_to_backup_dir<P: AsRef<Path>, Q: AsRef<Path>>(
-        backup_path: &P,
-        file_path: &Q,
-    ) -> Result<()> {
+    fn get_backup_path<P: AsRef<Path>, Q: AsRef<Path>>(
+        file_path: &P,
+        backup_path: &Q,
+    ) -> Result<PathBuf> {
         let common_component_name = backup_path.as_ref().file_name().with_context(|| {
             let path_str = backup_path.as_ref().to_string_lossy();
             format!("Unable to determine file / directory name of {}", path_str)
@@ -304,7 +390,14 @@ impl Archive {
         }
 
         let prefixless = file_path.as_ref().strip_prefix(base)?;
-        let backup_destination = backup_path.as_ref().join(prefixless);
+        Ok(backup_path.as_ref().join(prefixless))
+    }
+
+    fn copy_file_to_backup_dir<P: AsRef<Path>, Q: AsRef<Path>>(
+        backup_path: &P,
+        file_path: &Q,
+    ) -> Result<()> {
+        let backup_destination = Self::get_backup_path(file_path, backup_path)?;
 
         if file_path.as_ref().is_dir() {
             // We just want to make sure that directory exists and re-create it if it doesnt
@@ -327,6 +420,20 @@ impl Archive {
         }
 
         Ok(())
+    }
+}
+
+pub mod delta {
+    use std::path::PathBuf;
+
+    pub struct SaveFileUpdate {
+        pub change: FileChange,
+        pub path: PathBuf,
+    }
+    pub enum FileChange {
+        Update,
+        New,
+        Missing,
     }
 }
 

@@ -295,30 +295,30 @@ fn check_save(args: &ArgMatches) {
     }
 
     if let Some(save) = save {
-        let (new_files, changed_files) =
-            Archive::check_save(&db, &save).expect("Unable to Verify Integrity of Save");
+        use cli::archive::delta::FileChange;
 
-        if new_files.is_empty() && changed_files.is_empty() {
+        let changes = Archive::check_save(&db, &save).expect("Unable to Verify Integrity of Save");
+
+        if changes.is_empty() {
             if save.friendly_name.is_empty() {
                 println!("No changed were detected in {}", save.save_path)
             } else {
                 println!("{}'s backup is up to date.", save.friendly_name)
             }
         } else {
-            println!("The Backup and the current save differ");
-            println!();
+            for log in changes {
+                let file_path = log.path;
 
-            if !new_files.is_empty() {
-                println!("New Files:");
-                for file in new_files {
-                    println!("{}", file.to_string_lossy());
-                }
-            }
-
-            if !changed_files.is_empty() {
-                println!("Changed Files:");
-                for file in changed_files {
-                    println!("{}", file.to_string_lossy());
+                match log.change {
+                    FileChange::New => {
+                        println!("New: {}", file_path.to_string_lossy());
+                    }
+                    FileChange::Update => {
+                        println!("Changed: {}", file_path.to_string_lossy());
+                    }
+                    FileChange::Missing => {
+                        println!("Missing: {}", file_path.to_string_lossy());
+                    }
                 }
             }
         }

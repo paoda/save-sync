@@ -13,6 +13,16 @@ pub struct Save {
     pub modified_at: NaiveDateTime,
 }
 
+impl PartialEq<std::path::PathBuf> for Save {
+    fn eq(&self, other: &std::path::PathBuf) -> bool {
+        if let Some(path) = other.to_str() {
+            self.save_path == path
+        } else {
+            false
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Insertable)]
 #[table_name = "saves"]
 pub struct NewSave<'a> {
@@ -54,6 +64,16 @@ pub struct File {
     pub save_id: i32,
     pub created_at: NaiveDateTime,
     pub modified_at: NaiveDateTime,
+}
+
+impl PartialEq<std::path::PathBuf> for File {
+    fn eq(&self, other: &std::path::PathBuf) -> bool {
+        if let Some(path) = other.to_str() {
+            self.file_path == path
+        } else {
+            false
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Insertable)]
