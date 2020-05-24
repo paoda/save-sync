@@ -79,7 +79,7 @@ impl Default for ConfigManager {
 }
 
 impl ConfigManager {
-    pub fn new<T: AsRef<Path>>(path: &T) -> ConfigManager {
+    pub fn new<P: AsRef<Path>>(path: &P) -> ConfigManager {
         Self::create_config_directory(&path);
 
         ConfigManager {
@@ -87,7 +87,7 @@ impl ConfigManager {
         }
     }
 
-    fn create_config_directory<T: AsRef<Path>>(path: &T) {
+    fn create_config_directory<P: AsRef<Path>>(path: &P) {
         let parent = path.as_ref().parent().unwrap_or_else(|| {
             panic!(
                 "Unable to determine parent directory of {}",
@@ -102,7 +102,7 @@ impl ConfigManager {
         Self::create_config_file(path);
     }
 
-    fn create_config_file<T: AsRef<Path>>(path: &T) {
+    fn create_config_file<P: AsRef<Path>>(path: &P) {
         let path = path.as_ref();
         if !path.exists() {
             let config = Config::default();

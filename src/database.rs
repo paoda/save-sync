@@ -11,7 +11,7 @@ pub struct Database {
 }
 
 impl Database {
-    pub fn new<T: AsRef<Path>>(db_url: &T) -> Database {
+    pub fn new<P: AsRef<Path>>(db_url: &P) -> Database {
         Self::check_db_path(db_url);
 
         let manager = ConnectionManager::new(db_url.as_ref().to_str().unwrap());
@@ -32,7 +32,7 @@ impl Database {
         embedded_migrations::run(conn).expect("Failed to run embedded database migrations.");
     }
 
-    fn check_db_path<T: AsRef<Path>>(path: &T) {
+    fn check_db_path<P: AsRef<Path>>(path: &P) {
         // Quick Check to make sure the parent directory of the db file exists
         let parent = path.as_ref().parent().unwrap();
 
@@ -111,10 +111,10 @@ impl Database {
         if let Some(search_id) = query.id {
             list = saves.filter(id.eq(search_id)).load(&conn).expect(err_msg);
         } else if let Some(q_uuid) = query.uuid {
-            list = saves.filter(uuid.eq(&q_uuid)).load(&conn).expect(err_msg);
+            list = saves.filter(uuid.eq(q_uuid)).load(&conn).expect(err_msg);
         } else if let Some(name) = query.friendly_name {
             list = saves
-                .filter(friendly_name.eq(&name))
+                .filter(friendly_name.eq(name))
                 .load(&conn)
                 .expect(err_msg);
         } else if let Some(path) = query.path {
@@ -191,7 +191,7 @@ impl Database {
                 .execute(&conn)
                 .expect(err_msg);
         } else if let Some(name) = query.friendly_name {
-            diesel::delete(saves.filter(friendly_name.eq(&name)))
+            diesel::delete(saves.filter(friendly_name.eq(name)))
                 .execute(&conn)
                 .expect(err_msg);
         } else if let Some(path) = query.path {
@@ -246,10 +246,7 @@ impl Database {
                 .load(&conn)
                 .expect(err_msg);
         } else if let Some(hash) = query.hash {
-            list = files
-                .filter(file_hash.eq(&hash))
-                .load(&conn)
-                .expect(err_msg);
+            list = files.filter(file_hash.eq(hash)).load(&conn).expect(err_msg);
         }
 
         match list.len() {
@@ -323,7 +320,7 @@ impl Database {
                 .execute(&conn)
                 .expect(err_msg);
         } else if let Some(hash) = query.hash {
-            diesel::delete(files.filter(file_hash.eq(&hash)))
+            diesel::delete(files.filter(file_hash.eq(hash)))
                 .execute(&conn)
                 .expect(err_msg);
         }
@@ -367,10 +364,7 @@ impl Database {
         if let Some(search_id) = query.id {
             list = users.filter(id.eq(search_id)).load(&conn).expect(err_msg);
         } else if let Some(uname) = query.username {
-            list = users
-                .filter(username.eq(&uname))
-                .load(&conn)
-                .expect(err_msg)
+            list = users.filter(username.eq(uname)).load(&conn).expect(err_msg)
         }
 
         match list.len() {
@@ -417,7 +411,7 @@ impl Database {
                 .execute(&conn)
                 .expect(err_msg);
         } else if let Some(uname) = query.username {
-            diesel::delete(users.filter(username.eq(&uname)))
+            diesel::delete(users.filter(username.eq(uname)))
                 .execute(&conn)
                 .expect(err_msg);
         }
@@ -1158,7 +1152,7 @@ mod tests {
         let db = Database::new(&db_path);
 
         let hash: [u8; 32] = rand::random();
-        let query = FileQuery::new().with_hash(hash.to_vec());
+        let query = FileQuery::new().with_hash(&hash);
         let option = db.get_file(query);
 
         drop(db);

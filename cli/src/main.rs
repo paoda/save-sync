@@ -164,12 +164,16 @@ fn del_save(args: &ArgMatches) {
         }
     } else {
         let path = args.value_of("path").unwrap(); // Required if friendly is not set
-        let query = SaveQuery::new().with_path(&Path::new(path));
+        let path = Path::new(path);
+        let query = SaveQuery::new().with_path(&path);
         let option = db.get_save(query);
 
         match option {
             Some(result) => save = Some(result),
-            None => eprintln!("{} is not a tracked save path in the database.", path),
+            None => eprintln!(
+                "{} is not a tracked save path in the database.",
+                path.to_string_lossy()
+            ),
         }
     }
 
@@ -194,14 +198,16 @@ fn get_save_info(args: &ArgMatches) {
         }
     } else {
         let path = args.value_of("path").unwrap(); // Required if friendly is not set
-        let query = SaveQuery::new().with_path(&Path::new(path));
+        let path = Path::new(path);
+
+        let query = SaveQuery::new().with_path(&path);
         let option = db.get_save(query);
 
         match option {
             Some(result) => save = Some(result),
             None => eprintln!(
                 "\"{}\" is not a path which is stored in the database.",
-                path
+                path.to_string_lossy()
             ),
         }
     }
@@ -274,14 +280,16 @@ fn verify_save(args: &ArgMatches) {
         }
     } else {
         let path = args.value_of("path").unwrap(); // Required unless friendly is set.
-        let query = SaveQuery::new().with_path(&Path::new(path));
+        let path = Path::new(path);
+
+        let query = SaveQuery::new().with_path(&path);
         let option = db.get_save(query);
 
         match option {
             Some(result) => save = Some(result),
             None => eprintln!(
                 "\"{}\" is not a path which is stored in the database.",
-                path
+                path.to_string_lossy()
             ),
         }
     }
@@ -332,12 +340,17 @@ fn update_saves(args: &ArgMatches) {
         }
     } else {
         let path = args.value_of("path").unwrap();
-        let query = SaveQuery::new().with_path(&Path::new(path));
+        let path = Path::new(path);
+
+        let query = SaveQuery::new().with_path(&path);
         let option = db.get_save(query);
 
         match option {
             Some(result) => save = Some(result),
-            None => eprintln!("{} is not a tracked save in the database.", path),
+            None => eprintln!(
+                "{} is not a tracked save in the database.",
+                path.to_string_lossy()
+            ),
         }
     }
 

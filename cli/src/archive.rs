@@ -14,10 +14,10 @@ use uuid::Uuid;
 pub struct Archive {}
 
 impl Archive {
-    pub fn create_save<T: AsRef<Path>>(
+    pub fn create_save<P: AsRef<Path>>(
         db: &Database,
         user: &User,
-        path: &T,
+        path: &P,
         opt: SaveOptions,
     ) -> Result<()> {
         if !path.as_ref().exists() {
@@ -189,7 +189,7 @@ impl Archive {
         Ok((new_files, changed_files))
     }
 
-    fn create_file<T: AsRef<Path>>(db: &Database, save: &Save, path: &T) -> Result<()> {
+    fn create_file<P: AsRef<Path>>(db: &Database, save: &Save, path: &P) -> Result<()> {
         let file_path = path.as_ref().to_str().with_context(|| {
             format!(
                 "{} is not a UTF-8 compliant path.",
@@ -215,7 +215,7 @@ impl Archive {
         Ok(())
     }
 
-    fn update_file<T: AsRef<Path>>(db: &Database, path: &T) -> Result<()> {
+    fn update_file<P: AsRef<Path>>(db: &Database, path: &P) -> Result<()> {
         use save_sync::models::EditFile;
 
         let query = FileQuery::new().with_path(path);
@@ -243,7 +243,7 @@ impl Archive {
         Ok(())
     }
 
-    fn create_backup_path<T: AsRef<Path>>(path: &T, uuid: &str) -> Result<PathBuf> {
+    fn create_backup_path<P: AsRef<Path>>(path: &P, uuid: &str) -> Result<PathBuf> {
         let config = Config::static_config();
         let root_path = &config.data_location;
         let name = path.as_ref().file_name().with_context(|| {
@@ -255,7 +255,7 @@ impl Archive {
         Ok(backup_path)
     }
 
-    fn crawl<T: AsRef<Path>>(path: &T) -> Vec<PathBuf> {
+    fn crawl<P: AsRef<Path>>(path: &P) -> Vec<PathBuf> {
         let mut files: Vec<PathBuf> = vec![];
         let result = fs::read_dir(path);
 
@@ -274,7 +274,7 @@ impl Archive {
         }
     }
 
-    fn copy_save_files<T: AsRef<Path>>(save: &NewSave, files: &[T]) -> Result<()> {
+    fn copy_save_files<P: AsRef<Path>>(save: &NewSave, files: &[P]) -> Result<()> {
         let backup_path = Path::new(save.backup_path);
 
         for file_path in files {
@@ -284,9 +284,9 @@ impl Archive {
         Ok(())
     }
 
-    fn copy_file_to_backup_dir<T: AsRef<Path>, U: AsRef<Path>>(
-        backup_path: &T,
-        file_path: &U,
+    fn copy_file_to_backup_dir<P: AsRef<Path>, Q: AsRef<Path>>(
+        backup_path: &P,
+        file_path: &Q,
     ) -> Result<()> {
         let common_component_name = backup_path.as_ref().file_name().with_context(|| {
             let path_str = backup_path.as_ref().to_string_lossy();

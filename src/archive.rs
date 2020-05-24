@@ -29,7 +29,7 @@ impl Archive {
         }
     }
 
-    pub fn calc_hash<T: AsRef<Path>>(path: &T) -> u64 {
+    pub fn calc_hash<P: AsRef<Path>>(path: &P) -> u64 {
         use std::io::Read;
 
         let path = path.as_ref();
@@ -62,7 +62,7 @@ impl Archive {
         }
     }
 
-    pub fn compress_directory<T: AsRef<Path>, U: AsRef<Path>>(source: &T, target: &U) {
+    pub fn compress_directory<P: AsRef<Path>, Q: AsRef<Path>>(source: &P, target: &Q) {
         let tar_file = File::create(target).unwrap();
         let zstd_encoder = zstd::stream::Encoder::new(tar_file, 0).unwrap();
         let mut archive = TarBuilder::new(zstd_encoder);
@@ -85,7 +85,7 @@ impl Archive {
         }
     }
 
-    pub fn compress_file<T: AsRef<Path>, U: AsRef<Path>>(source: &T, target: &U) {
+    pub fn compress_file<P: AsRef<Path>, Q: AsRef<Path>>(source: &P, target: &Q) {
         let mut file = File::open(source).unwrap(); // Reader
         let compressed_file = File::create(target).unwrap(); // Writer
         let mut zstd_encoder = zstd::stream::Encoder::new(compressed_file, 0).unwrap();
@@ -94,7 +94,7 @@ impl Archive {
         zstd_encoder.finish().unwrap();
     }
 
-    pub fn decompress_archive<T: AsRef<Path>, U: AsRef<Path>>(source: &T, target: &U) {
+    pub fn decompress_archive<P: AsRef<Path>, Q: AsRef<Path>>(source: &P, target: &Q) {
         let source_file = File::open(source).unwrap();
         let zstd_decoder = zstd::stream::Decoder::new(source_file).unwrap();
         let mut archive = TarArchive::new(zstd_decoder);
@@ -102,7 +102,7 @@ impl Archive {
         archive.unpack(target).unwrap();
     }
 
-    pub fn decompress_file<T: AsRef<Path>, U: AsRef<Path>>(source: &T, target: &U) {
+    pub fn decompress_file<P: AsRef<Path>, Q: AsRef<Path>>(source: &P, target: &Q) {
         let file = File::open(source).unwrap();
         let mut target_file = File::create(target).unwrap();
 
@@ -116,19 +116,19 @@ impl Archive {
 }
 
 pub mod query {
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
 
     #[derive(Debug, Default, PartialEq, Eq)]
-    pub struct SaveQuery {
+    pub struct SaveQuery<'a> {
         pub id: Option<i32>,
-        pub friendly_name: Option<String>,
-        pub uuid: Option<String>,
-        pub path: Option<PathBuf>,
+        pub friendly_name: Option<&'a str>,
+        pub uuid: Option<&'a str>,
+        pub path: Option<&'a Path>,
         pub user_id: Option<i32>,
     }
 
-    impl SaveQuery {
-        pub fn new() -> SaveQuery {
+    impl<'a> SaveQuery<'a> {
+        pub fn new() -> SaveQuery<'a> {
             SaveQuery {
                 id: None,
                 friendly_name: None,
@@ -137,42 +137,42 @@ pub mod query {
                 user_id: None,
             }
         }
-        pub fn with_id(mut self, id: i32) -> SaveQuery {
+        pub fn with_id(mut self, id: i32) -> SaveQuery<'a> {
             self.id = Some(id);
             self
         }
 
-        pub fn with_path<T: AsRef<Path>>(mut self, path: &T) -> SaveQuery {
-            self.path = Some(path.as_ref().to_owned());
+        pub fn with_path<P: AsRef<Path>>(mut self, path: &'a P) -> SaveQuery<'a> {
+            self.path = Some(path.as_ref());
             self
         }
 
-        pub fn with_friendly_name(mut self, name: &str) -> SaveQuery {
-            self.friendly_name = Some(name.to_string()); // FIXME: Memory?s
+        pub fn with_friendly_name(mut self, name: &'a str) -> SaveQuery {
+            self.friendly_name = Some(name); // FIXME: Memory?s
             self
         }
 
-        pub fn with_user_id(mut self, id: i32) -> SaveQuery {
+        pub fn with_user_id(mut self, id: i32) -> SaveQuery<'a> {
             self.user_id = Some(id);
             self
         }
 
-        pub fn with_uuid(mut self, uuid: &str) -> SaveQuery {
-            self.uuid = Some(uuid.to_string());
+        pub fn with_uuid(mut self, uuid: &'a str) -> SaveQuery {
+            self.uuid = Some(uuid);
             self
         }
     }
 
     #[derive(Debug, Default, PartialEq, Eq)]
-    pub struct FileQuery {
+    pub struct FileQuery<'a> {
         pub id: Option<i32>,
-        pub path: Option<PathBuf>,
-        pub hash: Option<Vec<u8>>,
+        pub path: Option<&'a Path>,
+        pub hash: Option<&'a [u8]>,
         pub save_id: Option<i32>,
     }
 
-    impl FileQuery {
-        pub fn new() -> FileQuery {
+    impl<'a> FileQuery<'a> {
+        pub fn new() -> FileQuery<'a> {
             FileQuery {
                 id: None,
                 path: None,
@@ -181,48 +181,48 @@ pub mod query {
             }
         }
 
-        pub fn with_id(mut self, id: i32) -> FileQuery {
+        pub fn with_id(mut self, id: i32) -> FileQuery<'a> {
             self.id = Some(id);
             self
         }
 
-        pub fn with_path<T: AsRef<Path>>(mut self, path: &T) -> FileQuery {
-            self.path = Some(path.as_ref().to_owned());
+        pub fn with_path<P: AsRef<Path>>(mut self, path: &'a P) -> FileQuery {
+            self.path = Some(path.as_ref());
             self
         }
 
-        pub fn with_hash(mut self, hash: Vec<u8>) -> FileQuery {
+        pub fn with_hash(mut self, hash: &'a [u8]) -> FileQuery {
             self.hash = Some(hash);
             self
         }
 
-        pub fn with_save_id(mut self, save_id: i32) -> FileQuery {
+        pub fn with_save_id(mut self, save_id: i32) -> FileQuery<'a> {
             self.save_id = Some(save_id);
             self
         }
     }
 
     #[derive(Debug, Default, PartialEq, Eq)]
-    pub struct UserQuery {
+    pub struct UserQuery<'a> {
         pub id: Option<i32>,
-        pub username: Option<String>,
+        pub username: Option<&'a str>,
     }
 
-    impl UserQuery {
-        pub fn new() -> UserQuery {
+    impl<'a> UserQuery<'a> {
+        pub fn new() -> UserQuery<'a> {
             UserQuery {
                 id: None,
                 username: None,
             }
         }
 
-        pub fn with_id(mut self, id: i32) -> UserQuery {
+        pub fn with_id(mut self, id: i32) -> UserQuery<'a> {
             self.id = Some(id);
             self
         }
 
-        pub fn with_username(mut self, name: &str) -> UserQuery {
-            self.username = Some(name.to_string()); // FIXME: Memory?
+        pub fn with_username(mut self, name: &'a str) -> UserQuery {
+            self.username = Some(name);
             self
         }
     }
@@ -363,17 +363,18 @@ mod tests {
 
     #[test]
     fn example_save_query() {
+        let path = Path::new("test_location");
         let actual = SaveQuery::new()
             .with_id(1)
             .with_friendly_name("game1")
             .with_uuid("{uuid}")
-            .with_path(&Path::new("test_location"));
+            .with_path(&path);
 
         let expected = SaveQuery {
             id: Some(1),
-            friendly_name: Some(String::from("game1")),
-            uuid: Some(String::from("{uuid}")),
-            path: Some(PathBuf::from("test_location")),
+            friendly_name: Some("game1"),
+            uuid: Some("{uuid}"),
+            path: Some(Path::new("test_location")),
             user_id: None,
         };
 
@@ -383,17 +384,16 @@ mod tests {
     #[test]
     fn example_file_query() {
         let hash: [u8; 32] = rand::random();
-        let hash = hash.to_vec();
 
         let actual = FileQuery::new()
             .with_id(943)
-            .with_hash(hash.clone())
+            .with_hash(&hash)
             .with_save_id(2);
 
         let expected = FileQuery {
             id: Some(943),
             path: None,
-            hash: Some(hash),
+            hash: Some(&hash),
             save_id: Some(2),
         };
 
@@ -408,7 +408,7 @@ mod tests {
 
         let expected = UserQuery {
             id: Some(32),
-            username: Some(String::from("serious_gamer_1")),
+            username: Some("serious_gamer_1"),
         };
 
         assert_eq!(actual, expected);
