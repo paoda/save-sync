@@ -197,8 +197,8 @@ impl Archive {
                 match tracked_hash_map.get(file_str) {
                     Some(expected) => {
                         let actual = {
-                            let num = BaseArchive::calc_hash(&file_path);
-                            BaseArchive::u64_to_byte_vec(num)
+                            let num = BaseArchive::calc_hash(&file_path)?;
+                            BaseArchive::u64_to_byte_vec(num)?
                         };
 
                         if actual != *expected {
@@ -259,8 +259,8 @@ impl Archive {
                 match tracked_files_map.get(string) {
                     Some(expected) => {
                         let actual = {
-                            let hash_num = BaseArchive::calc_hash(&file_path);
-                            BaseArchive::u64_to_byte_vec(hash_num)
+                            let hash_num = BaseArchive::calc_hash(&file_path)?;
+                            BaseArchive::u64_to_byte_vec(hash_num)?
                         };
 
                         if actual != *expected {
@@ -285,8 +285,8 @@ impl Archive {
 
         let time = Utc::now().naive_utc();
         let file_hash = &{
-            let num = BaseArchive::calc_hash(path);
-            BaseArchive::u64_to_byte_vec(num)
+            let num = BaseArchive::calc_hash(path)?;
+            BaseArchive::u64_to_byte_vec(num)?
         };
 
         let new_file = NewFile {
@@ -314,8 +314,8 @@ impl Archive {
             )
         })?;
         let file_hash = &{
-            let hash_num = BaseArchive::calc_hash(path);
-            BaseArchive::u64_to_byte_vec(hash_num)
+            let hash_num = BaseArchive::calc_hash(path)?;
+            BaseArchive::u64_to_byte_vec(hash_num)?
         };
 
         let edit = EditFile {

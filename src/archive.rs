@@ -5,7 +5,20 @@ use std::hash::Hasher;
 use std::path::Path;
 use tar::Archive as TarArchive;
 use tar::Builder as TarBuilder;
+use thiserror::Error;
 use twox_hash::XxHash64;
+
+#[derive(Error, Debug)]
+pub enum ArchiveError {
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
+    #[error("{0} was found to be an invalid path.")]
+    InvalidPath(String),
+    #[error("{0} is not a valid UTF-8 compatible path")]
+    Illegalpath(String),
+    #[error("Unable to determine the file / path name of {0}")]
+    UnknownFileName(String),
+}
 
 #[derive(Debug, Default)]
 pub struct Archive {}
@@ -15,21 +28,15 @@ impl Archive {
         Archive {}
     }
 
-    pub fn u64_to_byte_vec(num: u64) -> Vec<u8> {
+    pub fn u64_to_byte_vec(num: u64) -> Result<Vec<u8>, ArchiveError> {
         use byteorder::{LittleEndian, WriteBytesExt};
 
         let mut bytes: Vec<u8> = vec![];
-
-        match bytes.write_u64::<LittleEndian>(num) {
-            Ok(_) => bytes,
-            Err(err) => {
-                dbg!(err); // FIXME: https://rust-lang.github.io/rust-clippy/master/index.html#match_wild_err_arm
-                panic!("Unable to convert u64 into Vec<u8>")
-            }
-        }
+        bytes.write_u64::<LittleEndian>(num)?;
+        Ok(bytes)
     }
 
-    pub fn calc_hash<P: AsRef<Path>>(path: &P) -> u64 {
+    pub fn calc_hash<P: AsRef<Path>>(path: &P) -> Result<u64, ArchiveError> {
         use std::io::Read;
 
         let path = path.as_ref();
@@ -39,74 +46,77 @@ impl Archive {
         // If hasher implements Writer we can use std::io::copy
         let mut hasher = XxHash64::with_seed(seed);
         let chunk_size = 0x4000;
-        let file_result = File::open(path);
-        let panic_msg = format!("Failed to Stream data from \"{}\"", &path.to_string_lossy());
+        let mut file = File::open(path)?;
 
-        match file_result {
-            Ok(mut file) => {
-                loop {
-                    let mut chunk = Vec::with_capacity(chunk_size);
-                    let n = file
-                        .by_ref()
-                        .take(chunk_size as u64)
-                        .read_to_end(&mut chunk)
-                        .expect(&panic_msg);
-                    if n == 0 {
-                        break;
-                    }
-                    hasher.write(&chunk);
-                }
-                hasher.finish()
+        loop {
+            let mut chunk = Vec::with_capacity(chunk_size);
+            let n = file
+                .by_ref()
+                .take(chunk_size as u64)
+                .read_to_end(&mut chunk)?;
+
+            if n == 0 {
+                break;
             }
-            Err(err) => panic!("{}", err),
+            hasher.write(&chunk);
         }
+        Ok(hasher.finish())
     }
 
-    pub fn compress_directory<P: AsRef<Path>, Q: AsRef<Path>>(source: &P, target: &Q) {
-        let tar_file = File::create(target).unwrap();
-        let zstd_encoder = zstd::stream::Encoder::new(tar_file, 0).unwrap();
+    pub fn compress_directory<P: AsRef<Path>, Q: AsRef<Path>>(
+        source: &P,
+        target: &Q,
+    ) -> Result<(), ArchiveError> {
+        let tar_file = File::create(target)?;
+        let zstd_encoder = zstd::stream::Encoder::new(tar_file, 0)?;
         let mut archive = TarBuilder::new(zstd_encoder);
 
-        let base_name = source.as_ref().file_name().unwrap().to_str(); // TODO: Handle Unwrap
+        let err = ArchiveError::UnknownFileName(source.as_ref().to_string_lossy().to_string());
+        let base_name = source.as_ref().file_name().ok_or(err)?;
 
-        match base_name {
-            Some(name) => {
-                archive.append_dir_all(name, source).unwrap();
-                let zstd_encoder = archive.into_inner().unwrap();
+        let name = base_name
+            .to_str()
+            .ok_or_else(|| ArchiveError::Illegalpath(base_name.to_string_lossy().to_string()))?;
 
-                zstd_encoder.finish().unwrap();
-            }
-            None => {
-                panic!(
-                    "Failed to Convert the File name of {} into a Valid UTF-8 String",
-                    source.as_ref().to_string_lossy()
-                );
-            }
-        }
+        archive.append_dir_all(name, source)?;
+        let zstd_encoder = archive.into_inner()?;
+        zstd_encoder.finish()?;
+        Ok(())
     }
 
-    pub fn compress_file<P: AsRef<Path>, Q: AsRef<Path>>(source: &P, target: &Q) {
-        let mut file = File::open(source).unwrap(); // Reader
-        let compressed_file = File::create(target).unwrap(); // Writer
-        let mut zstd_encoder = zstd::stream::Encoder::new(compressed_file, 0).unwrap();
+    pub fn compress_file<P: AsRef<Path>, Q: AsRef<Path>>(
+        source: &P,
+        target: &Q,
+    ) -> Result<(), ArchiveError> {
+        let mut file = File::open(source)?; // Reader
+        let compressed_file = File::create(target)?; // Writer
+        let mut zstd_encoder = zstd::stream::Encoder::new(compressed_file, 0)?;
 
-        std::io::copy(&mut file, &mut zstd_encoder).unwrap();
-        zstd_encoder.finish().unwrap();
+        std::io::copy(&mut file, &mut zstd_encoder)?;
+        zstd_encoder.finish()?;
+
+        Ok(())
     }
 
-    pub fn decompress_archive<P: AsRef<Path>, Q: AsRef<Path>>(source: &P, target: &Q) {
-        let source_file = File::open(source).unwrap();
-        let zstd_decoder = zstd::stream::Decoder::new(source_file).unwrap();
+    pub fn decompress_archive<P: AsRef<Path>, Q: AsRef<Path>>(
+        source: &P,
+        target: &Q,
+    ) -> Result<(), ArchiveError> {
+        let source_file = File::open(source)?;
+        let zstd_decoder = zstd::stream::Decoder::new(source_file)?;
         let mut archive = TarArchive::new(zstd_decoder);
 
-        archive.unpack(target).unwrap();
+        Ok(archive.unpack(target)?)
     }
 
-    pub fn decompress_file<P: AsRef<Path>, Q: AsRef<Path>>(source: &P, target: &Q) {
-        let file = File::open(source).unwrap();
-        let mut target_file = File::create(target).unwrap();
+    pub fn decompress_file<P: AsRef<Path>, Q: AsRef<Path>>(
+        source: &P,
+        target: &Q,
+    ) -> Result<(), ArchiveError> {
+        let file = File::open(source)?;
+        let mut target_file = File::create(target)?;
 
-        zstd::stream::copy_decode(&file, &mut target_file).unwrap();
+        Ok(zstd::stream::copy_decode(&file, &mut target_file)?)
     }
 
     /// Gets a unix time stamp in UTC±0:00
@@ -148,7 +158,7 @@ pub mod query {
         }
 
         pub fn with_friendly_name(mut self, name: &'a str) -> SaveQuery {
-            self.friendly_name = Some(name); // FIXME: Memory?s
+            self.friendly_name = Some(name);
             self
         }
 
@@ -243,7 +253,7 @@ mod tests {
         let expected: Vec<u8> = vec![162, 237, 204, 196, 230, 7, 254, 234];
         let num: u64 = 16932980336685280674;
 
-        let actual = Archive::u64_to_byte_vec(num);
+        let actual = Archive::u64_to_byte_vec(num).unwrap();
 
         assert_eq!(actual, expected);
     }
@@ -272,7 +282,7 @@ mod tests {
             hasher.finish()
         };
 
-        let actual = Archive::calc_hash(&file_path);
+        let actual = Archive::calc_hash(&file_path).unwrap();
 
         test_dir.close().unwrap();
         assert_eq!(actual, expected);
@@ -306,8 +316,8 @@ mod tests {
         let mut file2 = File::create(file2_path).unwrap();
         file2.write_all(file2_expected.as_bytes()).unwrap();
 
-        Archive::compress_directory(&src_dir, &archive_path);
-        Archive::decompress_archive(&archive_path, &copy_dir);
+        Archive::compress_directory(&src_dir, &archive_path).unwrap();
+        Archive::decompress_archive(&archive_path, &copy_dir).unwrap();
 
         let mut file1_actual = String::new();
         let mut file2_actual = String::new();
@@ -349,8 +359,8 @@ mod tests {
 
         file.write_all(&expected).unwrap();
 
-        Archive::compress_file(&file_path, &archive_path);
-        Archive::decompress_file(&archive_path, &actual_path);
+        Archive::compress_file(&file_path, &archive_path).unwrap();
+        Archive::decompress_file(&archive_path, &actual_path).unwrap();
 
         let mut file = File::open(&actual_path).unwrap();
 
