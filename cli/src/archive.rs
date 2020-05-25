@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
+use change::{SaveUpdate, Type};
 use chrono::Utc;
-use delta::{FileChange, SaveFileUpdate};
 use options::*;
 use save_sync::archive::query::{FileQuery, SaveQuery};
 use save_sync::config::Config;
@@ -120,7 +120,7 @@ impl Archive {
         for log in changes {
             let file_path = log.path;
             match log.change {
-                FileChange::Missing => {
+                Type::Missing => {
                     changelog.push_str(&format!(
                         "\nMissing (NOW DELETING!!!): {}",
                         file_path.to_string_lossy()
@@ -133,13 +133,13 @@ impl Archive {
                     let backup_path = Self::get_backup_path(&file_path, &backup_path)?;
                     fs::remove_file(backup_path)?;
                 }
-                FileChange::New => {
+                Type::New => {
                     changelog.push_str(&format!("\nNew: {}", file_path.to_string_lossy()));
 
                     Self::copy_file_to_backup_dir(&backup_path, &file_path)?;
                     Self::create_file(db, save, &file_path)?;
                 }
-                FileChange::Update => {
+                Type::Update => {
                     changelog.push_str(&format!("\nUpdated: {}", file_path.to_string_lossy()));
 
                     Self::copy_file_to_backup_dir(&backup_path, &file_path)?;
@@ -151,7 +151,7 @@ impl Archive {
         Ok(Some(changelog))
     }
 
-    pub fn check_save(db: &Database, save: &Save) -> Result<Vec<SaveFileUpdate>> {
+    pub fn check_save(db: &Database, save: &Save) -> Result<Vec<SaveUpdate>> {
         use std::collections::HashMap;
 
         let mut result = vec![];
@@ -180,8 +180,8 @@ impl Archive {
 
             // if current tracked file does not match any on disk
             if !current.iter().any(|path| file == *path) {
-                result.push(SaveFileUpdate {
-                    change: FileChange::Missing,
+                result.push(SaveUpdate {
+                    change: Type::Missing,
                     path: PathBuf::from(file.file_path),
                 })
             }
@@ -202,14 +202,14 @@ impl Archive {
                         };
 
                         if actual != *expected {
-                            result.push(SaveFileUpdate {
-                                change: FileChange::Update,
+                            result.push(SaveUpdate {
+                                change: Type::Update,
                                 path: file_path,
                             })
                         }
                     }
-                    None => result.push(SaveFileUpdate {
-                        change: FileChange::New,
+                    None => result.push(SaveUpdate {
+                        change: Type::New,
                         path: file_path,
                     }),
                 }
@@ -423,14 +423,14 @@ impl Archive {
     }
 }
 
-pub mod delta {
+pub mod change {
     use std::path::PathBuf;
 
-    pub struct SaveFileUpdate {
-        pub change: FileChange,
+    pub struct SaveUpdate {
+        pub change: Type,
         pub path: PathBuf,
     }
-    pub enum FileChange {
+    pub enum Type {
         Update,
         New,
         Missing,

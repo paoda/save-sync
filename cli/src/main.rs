@@ -1,4 +1,5 @@
 use clap::{App, Arg, ArgMatches, SubCommand};
+use cli::archive::change::Type as ChangeType;
 use cli::archive::Archive;
 use save_sync::archive::query::{SaveQuery, UserQuery};
 use save_sync::config::Config;
@@ -295,13 +296,12 @@ fn check_save(args: &ArgMatches) {
     }
 
     if let Some(save) = save {
-        use cli::archive::delta::FileChange;
-
-        let changes = Archive::check_save(&db, &save).expect("Unable to Verify Integrity of Save");
+        let changes =
+            Archive::check_save(&db, &save).expect("Failed to check the integrity of this save.");
 
         if changes.is_empty() {
             if save.friendly_name.is_empty() {
-                println!("No changed were detected in {}", save.save_path)
+                println!("No changes were detected in {}", save.save_path)
             } else {
                 println!("{}'s backup is up to date.", save.friendly_name)
             }
@@ -310,13 +310,13 @@ fn check_save(args: &ArgMatches) {
                 let file_path = log.path;
 
                 match log.change {
-                    FileChange::New => {
+                    ChangeType::New => {
                         println!("New: {}", file_path.to_string_lossy());
                     }
-                    FileChange::Update => {
+                    ChangeType::Update => {
                         println!("Changed: {}", file_path.to_string_lossy());
                     }
-                    FileChange::Missing => {
+                    ChangeType::Missing => {
                         println!("Missing: {}", file_path.to_string_lossy());
                     }
                 }
