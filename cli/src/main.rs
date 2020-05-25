@@ -132,7 +132,7 @@ fn main() {
 fn add_save(args: &ArgMatches) {
     use cli::archive::options::SaveOptions;
 
-    let config = Config::static_config();
+    let config = Config::static_config().unwrap();
     let path = args.value_of("path").unwrap(); // required
 
     let username = (&config.local_username).clone();
@@ -151,7 +151,7 @@ fn add_save(args: &ArgMatches) {
 }
 
 fn del_save(args: &ArgMatches) {
-    let config = Config::static_config();
+    let config = Config::static_config().unwrap();
     let db = Database::new(&config.db_location);
     let mut save: Option<Save> = None;
 
@@ -184,7 +184,7 @@ fn del_save(args: &ArgMatches) {
 }
 
 fn get_save_info(args: &ArgMatches) {
-    let config = Config::static_config();
+    let config = Config::static_config().unwrap();
     let db = Database::new(&config.db_location);
     let mut save: Option<Save> = None;
 
@@ -240,7 +240,7 @@ fn get_save_info(args: &ArgMatches) {
 }
 
 fn list_tracked_saves() {
-    let config = Config::static_config();
+    let config = Config::static_config().unwrap();
     let db = Database::new(&config.db_location);
     let user = get_local_user(&db, &config.local_username);
 
@@ -266,7 +266,7 @@ fn list_tracked_saves() {
 }
 
 fn check_save(args: &ArgMatches) {
-    let config = Config::static_config();
+    let config = Config::static_config().unwrap();
     let db = Database::new(&config.db_location);
     let mut save: Option<Save> = None;
 
@@ -326,7 +326,7 @@ fn check_save(args: &ArgMatches) {
 }
 
 fn update_saves(args: &ArgMatches) {
-    let config = Config::static_config();
+    let config = Config::static_config().unwrap();
     let db = Database::new(&config.db_location);
     let mut save: Option<Save> = None;
 
@@ -382,7 +382,7 @@ fn get_local_user(db: &Database, username: &str) -> User {
                 Some(users) => {
                     if users.len() == 1 {
                         // There is only one user in the DB. We can assume that this is the new default.
-                        let old_config = Config::clone_config();
+                        let old_config = Config::clone_config().unwrap();
                         let new_default_user = users.first().unwrap();
                         let local_username = new_default_user.username.clone();
 
@@ -390,10 +390,10 @@ fn get_local_user(db: &Database, username: &str) -> User {
                             local_username,
                             ..old_config
                         };
-                        Config::update(new_config);
+                        Config::update(new_config).unwrap();
 
                         let manager = ConfigManager::default();
-                        manager.write_to_file(); // Update the Config File
+                        manager.write_to_file().unwrap(); // Update the Config File
 
                         new_default_user.clone()
                     } else {

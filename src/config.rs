@@ -3,10 +3,33 @@ use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{RwLock, RwLockReadGuard};
+use std::sync::{PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use thiserror::Error;
 
 lazy_static! {
     static ref CONFIG: RwLock<Config> = RwLock::new(Config::default());
+}
+
+#[derive(Error, Debug)]
+pub enum ConfigError {
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
+    #[error(transparent)]
+    PoisonedWriteError(#[from] PoisonError<RwLockWriteGuard<'static, Config>>),
+    #[error(transparent)]
+    PoisonedReadError(#[from] PoisonError<RwLockReadGuard<'static, Config>>),
+    #[error("Failed to Deserialize save-sync configuration from disk.")]
+    DeserializationError(#[from] toml::de::Error),
+    #[error("Falied to Serialize save-sync configuration to disk.")]
+    SerializationError(#[from] toml::ser::Error),
+    #[error("{0} was found to be an invalid path.")]
+    InvalidPath(String),
+    #[error("{0} is not a valid UTF-8 compatible path")]
+    IllegalPath(String),
+    #[error("Unable to determine the file / path name of {0}")]
+    UnknownFileName(String),
+    #[error("Unable to determine the parent of {0}")]
+    UnknownPathParent(String),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -31,24 +54,28 @@ impl Default for Config {
     }
 }
 
-impl Config {
-    pub fn update(config: Config) {
-        let mut w = CONFIG.write().unwrap();
+impl<'a> Config {
+    pub fn update(config: Config) -> Result<(), ConfigError> {
+        let mut w = CONFIG.write()?;
         *w = config;
+
+        Ok(())
     }
 
-    pub fn static_config() -> RwLockReadGuard<'static, Config> {
-        CONFIG.read().unwrap()
+    pub fn static_config() -> Result<RwLockReadGuard<'a, Config>, ConfigError> {
+        Ok(CONFIG.read()?)
     }
 
-    pub fn clone_config() -> Config {
-        (*CONFIG.read().unwrap()).clone()
+    pub fn clone_config() -> Result<Config, ConfigError> {
+        Ok((*CONFIG.read()?).clone())
     }
 
     fn get_default_data_path() -> PathBuf {
         match ProjectDirs::from("moe", "paoda", "save-sync") {
             Some(project) => project.data_dir().to_path_buf(),
-            None => panic!("No valid home directory could be retrieved from the Operating System."),
+            None => {
+                panic!("No valid home directory could be determined from the Operating System.")
+            }
         }
     }
 }
@@ -80,65 +107,68 @@ impl Default for ConfigManager {
 
 impl ConfigManager {
     pub fn new<P: AsRef<Path>>(path: &P) -> ConfigManager {
-        Self::create_config_directory(&path);
+        Self::create_config_directory(&path).expect("Unable to create save-sync config directory.");
 
         ConfigManager {
             config_file_path: path.as_ref().to_owned(),
         }
     }
 
-    fn create_config_directory<P: AsRef<Path>>(path: &P) {
-        let parent = path.as_ref().parent().unwrap_or_else(|| {
-            panic!(
-                "Unable to determine parent directory of {}",
-                path.as_ref().to_string_lossy()
-            )
-        }); // TODO: Instead of panicking , handle this option as if it were a ConfigError
+    fn create_config_directory<P: AsRef<Path>>(path: &P) -> Result<(), ConfigError> {
+        let parent = path.as_ref().parent().ok_or_else(|| {
+            ConfigError::UnknownPathParent(path.as_ref().to_string_lossy().to_string())
+        })?;
 
         if !parent.exists() {
-            fs::create_dir_all(parent).unwrap();
+            fs::create_dir_all(parent)?;
         }
 
-        Self::create_config_file(path);
+        Ok(Self::create_config_file(path)?)
     }
 
-    fn create_config_file<P: AsRef<Path>>(path: &P) {
+    fn create_config_file<P: AsRef<Path>>(path: &P) -> Result<(), ConfigError> {
         let path = path.as_ref();
         if !path.exists() {
             let config = Config::default();
 
-            let toml_string = toml::to_string(&config).unwrap();
-            let mut file = File::create(path).unwrap();
-            file.write_all(toml_string.as_bytes()).unwrap();
+            let toml_string = toml::to_string(&config)?;
+            let mut file = File::create(path)?;
+            file.write_all(toml_string.as_bytes())?;
         } else {
-            // FIXME: Code Duplication here :\
-
-            let file = File::open(path).unwrap();
-            Self::update_config_from_file(&file);
+            let file = File::open(path)?;
+            Self::update_config_from_file(&file)?;
         }
+
+        Ok(())
     }
 
-    fn update_config_from_file(file: &File) {
+    fn update_config_from_file(file: &File) -> Result<(), ConfigError> {
         let mut buf_reader = BufReader::new(file);
         let mut toml_buf = vec![];
-        buf_reader.read_to_end(&mut toml_buf).unwrap();
+        buf_reader.read_to_end(&mut toml_buf)?;
 
-        let config: Config = toml::from_slice(&toml_buf).unwrap();
-        Config::update(config);
+        let config: Config = toml::from_slice(&toml_buf)?;
+        Config::update(config)?;
+
+        Ok(())
     }
 
-    pub fn load_from_file(&self) {
-        let file = File::open(&self.config_file_path).unwrap();
-        Self::update_config_from_file(&file);
+    pub fn load_from_file(&self) -> Result<(), ConfigError> {
+        let file = File::open(&self.config_file_path)?;
+        Self::update_config_from_file(&file)?;
+
+        Ok(())
     }
 
-    pub fn write_to_file(&self) {
-        let config = Config::static_config();
-        let toml_string = toml::to_string(&(*config)).unwrap();
+    pub fn write_to_file(&self) -> Result<(), ConfigError> {
+        let config = Config::static_config()?;
+        let toml_string = toml::to_string(&(*config))?;
 
-        let mut file = File::create(&self.config_file_path).unwrap();
+        let mut file = File::create(&self.config_file_path)?;
 
-        file.write_all(toml_string.as_bytes()).unwrap();
+        file.write_all(toml_string.as_bytes())?;
+
+        Ok(())
     }
 
     pub fn get_config_dir() -> PathBuf {
@@ -171,9 +201,9 @@ mod tests {
             local_username: "SomeUser".to_string(),
         };
 
-        Config::update(expected.clone());
+        Config::update(expected.clone()).unwrap();
 
-        let actual = &*Config::static_config();
+        let actual = &*Config::static_config().unwrap();
 
         assert_eq!(*actual, expected);
     }
@@ -197,8 +227,8 @@ mod tests {
         };
 
         let manager = ConfigManager::new(&settings_path);
-        Config::update(expected.clone());
-        manager.write_to_file();
+        Config::update(expected.clone()).unwrap();
+        manager.write_to_file().unwrap();
 
         let mut file = File::open(settings_path).unwrap();
 
@@ -235,9 +265,9 @@ mod tests {
         let toml_str = toml::to_string(&expected).unwrap();
         settings.write_all(&toml_str.into_bytes()).unwrap();
 
-        manager.load_from_file();
+        manager.load_from_file().unwrap();
 
-        let actual = &*Config::static_config();
+        let actual = &*Config::static_config().unwrap();
 
         test_dir.close().unwrap();
         assert_eq!(*actual, expected);
@@ -250,7 +280,7 @@ mod tests {
         let expected = Config::default();
         let settings_path: PathBuf = [tmp_dir, &PathBuf::from("settings.toml")].iter().collect();
 
-        ConfigManager::create_config_file(&settings_path);
+        ConfigManager::create_config_file(&settings_path).unwrap();
         let mut file = File::open(&settings_path).unwrap();
         let mut toml_string = String::new();
 

@@ -330,7 +330,8 @@ impl Archive {
     }
 
     fn create_backup_path<P: AsRef<Path>>(path: &P, uuid: &str) -> Result<PathBuf> {
-        let config = Config::static_config();
+        let config = Config::static_config()
+            .map_err(|_| anyhow!("Unable to get a reference to the global config"))?; // ConfigError is not thread save FIXME: Remove this workaround.
         let root_path = &config.data_location;
         let name = path.as_ref().file_name().with_context(|| {
             let path_str = path.as_ref().to_string_lossy();

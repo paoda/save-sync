@@ -15,9 +15,11 @@ pub enum ArchiveError {
     #[error("{0} was found to be an invalid path.")]
     InvalidPath(String),
     #[error("{0} is not a valid UTF-8 compatible path")]
-    Illegalpath(String),
+    IllegalPath(String),
     #[error("Unable to determine the file / path name of {0}")]
     UnknownFileName(String),
+    #[error("Unable to obtain reference to the global static config")]
+    UnaccessableConfig,
 }
 
 #[derive(Debug, Default)]
@@ -40,7 +42,7 @@ impl Archive {
         use std::io::Read;
 
         let path = path.as_ref();
-        let config = Config::static_config();
+        let config = Config::static_config().map_err(|_| ArchiveError::UnaccessableConfig)?;
         let seed = config.xxhash_seed as u64;
 
         // If hasher implements Writer we can use std::io::copy
@@ -76,7 +78,7 @@ impl Archive {
 
         let name = base_name
             .to_str()
-            .ok_or_else(|| ArchiveError::Illegalpath(base_name.to_string_lossy().to_string()))?;
+            .ok_or_else(|| ArchiveError::IllegalPath(base_name.to_string_lossy().to_string()))?;
 
         archive.append_dir_all(name, source)?;
         let zstd_encoder = archive.into_inner()?;
@@ -272,7 +274,7 @@ mod tests {
         let mut file = File::create(&file_path).unwrap();
         file.write_all(&bytes).unwrap();
 
-        let config = Config::static_config();
+        let config = Config::static_config().unwrap();
         let seed = config.xxhash_seed as u64;
 
         let expected = {
