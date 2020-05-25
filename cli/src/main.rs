@@ -136,7 +136,7 @@ fn add_save(args: &ArgMatches) {
     let path = args.value_of("path").unwrap(); // required
 
     let username = (&config.local_username).clone();
-    let db = Database::new(&config.db_location);
+    let db = Database::new(&config.db_location).unwrap();
     let user = get_local_user(&db, &username);
     let path = Path::new(path);
     let mut opt = SaveOptions {
@@ -152,7 +152,7 @@ fn add_save(args: &ArgMatches) {
 
 fn del_save(args: &ArgMatches) {
     let config = Config::static_config().unwrap();
-    let db = Database::new(&config.db_location);
+    let db = Database::new(&config.db_location).unwrap();
     let mut save: Option<Save> = None;
 
     if let Some(name) = args.value_of("friendly") {
@@ -185,7 +185,7 @@ fn del_save(args: &ArgMatches) {
 
 fn get_save_info(args: &ArgMatches) {
     let config = Config::static_config().unwrap();
-    let db = Database::new(&config.db_location);
+    let db = Database::new(&config.db_location).unwrap();
     let mut save: Option<Save> = None;
 
     if let Some(name) = args.value_of("friendly") {
@@ -241,7 +241,7 @@ fn get_save_info(args: &ArgMatches) {
 
 fn list_tracked_saves() {
     let config = Config::static_config().unwrap();
-    let db = Database::new(&config.db_location);
+    let db = Database::new(&config.db_location).unwrap();
     let user = get_local_user(&db, &config.local_username);
 
     let query = SaveQuery::new().with_user_id(user.id);
@@ -267,7 +267,7 @@ fn list_tracked_saves() {
 
 fn check_save(args: &ArgMatches) {
     let config = Config::static_config().unwrap();
-    let db = Database::new(&config.db_location);
+    let db = Database::new(&config.db_location).unwrap();
     let mut save: Option<Save> = None;
 
     if let Some(name) = args.value_of("friendly") {
@@ -327,7 +327,7 @@ fn check_save(args: &ArgMatches) {
 
 fn update_saves(args: &ArgMatches) {
     let config = Config::static_config().unwrap();
-    let db = Database::new(&config.db_location);
+    let db = Database::new(&config.db_location).unwrap();
     let mut save: Option<Save> = None;
 
     if let Some(name) = args.value_of("friendly") {

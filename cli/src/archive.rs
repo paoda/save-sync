@@ -96,12 +96,12 @@ impl Archive {
         if let Some(files) = option {
             for file in files {
                 let file_query = FileQuery::new().with_id(file.id);
-                db.delete_file(file_query);
+                db.delete_file(file_query)?;
             }
         }
 
         let save_query = SaveQuery::new().with_id(save.id);
-        db.delete_save(save_query);
+        db.delete_save(save_query)?;
 
         // Now Delete the Files on disk
         fs::remove_dir_all(backup_path)?;
@@ -129,7 +129,7 @@ impl Archive {
                     //TODO: Be a bit more careful about deleting files
                     let query = FileQuery::new().with_path(&file_path);
 
-                    db.delete_file(query);
+                    db.delete_file(query)?;
                     let backup_path = Self::get_backup_path(&file_path, &backup_path)?;
                     fs::remove_file(backup_path)?;
                 }

@@ -5,24 +5,42 @@ use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use diesel::SqliteConnection;
 use std::path::Path;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum DatabaseError {
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
+    #[error("R2D2 Error")]
+    R2D2Error,
+    #[error("{0} was found to be an invalid path.")]
+    InvalidPath(String),
+    #[error("{0} is not a valid UTF-8 compatible path")]
+    IllegalPath(String),
+    #[error("Unable to determine the parent of {0}")]
+    UnknownPathParent(String),
+}
 
 pub struct Database {
     pool: Pool<ConnectionManager<SqliteConnection>>,
 }
 
 impl Database {
-    pub fn new<P: AsRef<Path>>(db_url: &P) -> Database {
-        Self::check_db_path(db_url);
+    pub fn new<P: AsRef<Path>>(db_url: &P) -> Result<Database, DatabaseError> {
+        Self::check_db_path(db_url)?;
 
-        let manager = ConnectionManager::new(db_url.as_ref().to_str().unwrap());
+        let manager = ConnectionManager::new(db_url.as_ref().to_str().ok_or_else(|| {
+            DatabaseError::IllegalPath(db_url.as_ref().to_string_lossy().to_string())
+        })?);
+
         let pool = Pool::builder()
             .max_size(15) // TODO: Make Configurable? Is this even necessary?
             .build(manager)
-            .unwrap();
+            .map_err(|_| DatabaseError::R2D2Error)?; // https://github.com/diesel-rs/diesel/issues/1919
 
         Self::check_db(&pool);
 
-        Database { pool }
+        Ok(Database { pool })
     }
 
     fn check_db(pool: &Pool<ConnectionManager<SqliteConnection>>) {
@@ -32,13 +50,20 @@ impl Database {
         embedded_migrations::run(conn).expect("Failed to run embedded database migrations.");
     }
 
-    fn check_db_path<P: AsRef<Path>>(path: &P) {
+    fn check_db_path<P: AsRef<Path>>(path: &P) -> Result<(), DatabaseError> {
         // Quick Check to make sure the parent directory of the db file exists
-        let parent = path.as_ref().parent().unwrap();
+        let path_string = path.as_ref().to_string_lossy().to_owned().to_string();
+
+        let parent = path
+            .as_ref()
+            .parent()
+            .ok_or(DatabaseError::UnknownPathParent(path_string))?;
 
         if !parent.exists() {
-            std::fs::create_dir_all(parent).unwrap();
+            std::fs::create_dir_all(parent)?;
         }
+
+        Ok(())
     }
 
     pub fn get_pool(self) -> Pool<ConnectionManager<SqliteConnection>> {
@@ -118,7 +143,7 @@ impl Database {
                 .load(&conn)
                 .expect(err_msg);
         } else if let Some(path) = query.path {
-            let path_str = path.to_str().unwrap();
+            let path_str = path.to_str()?;
             list = saves
                 .filter(save_path.eq(path_str))
                 .load(&conn)
@@ -127,7 +152,7 @@ impl Database {
 
         match list.len() {
             0 => None,
-            1 => Some(list.first().unwrap().clone()),
+            1 => Some(list.first()?.clone()),
             _ => panic!("Expected 1 save to be found, but found multiple."),
         }
     }
@@ -179,7 +204,7 @@ impl Database {
             .expect("Failed to update save in database.");
     }
 
-    pub fn delete_save(&self, query: SaveQuery) {
+    pub fn delete_save(&self, query: SaveQuery) -> Result<(), DatabaseError> {
         // TODO: Return Result
         use schema::saves::dsl::*;
 
@@ -195,11 +220,16 @@ impl Database {
                 .execute(&conn)
                 .expect(err_msg);
         } else if let Some(path) = query.path {
-            let path_str = path.to_str().unwrap();
+            let path_string = path.to_string_lossy().to_string();
+            let path_str = path
+                .to_str()
+                .ok_or(DatabaseError::IllegalPath(path_string))?;
             diesel::delete(saves.filter(save_path.eq(path_str)))
                 .execute(&conn)
                 .expect(err_msg);
         }
+
+        Ok(())
     }
 
     pub fn delete_saves(&self, query: SaveQuery) {
@@ -240,7 +270,7 @@ impl Database {
         if let Some(search_id) = query.id {
             list = files.filter(id.eq(search_id)).load(&conn).expect(err_msg);
         } else if let Some(path) = query.path {
-            let path_str = path.to_str().unwrap();
+            let path_str = path.to_str()?;
             list = files
                 .filter(file_path.eq(path_str))
                 .load(&conn)
@@ -251,7 +281,7 @@ impl Database {
 
         match list.len() {
             0 => None,
-            1 => Some(list.first().unwrap().clone()),
+            1 => Some(list.first()?.clone()),
             _ => panic!("Expected 1 file to be found, but found multiple."),
         }
     }
@@ -303,7 +333,7 @@ impl Database {
             .expect("Failed to update file in database.");
     }
 
-    pub fn delete_file(&self, query: FileQuery) {
+    pub fn delete_file(&self, query: FileQuery) -> Result<(), DatabaseError> {
         // TODO: Return result
         use schema::files::dsl::*;
 
@@ -315,7 +345,10 @@ impl Database {
                 .execute(&conn)
                 .expect(err_msg);
         } else if let Some(path) = query.path {
-            let path_str = path.to_str().unwrap();
+            let path_string = path.to_string_lossy().to_string();
+            let path_str = path
+                .to_str()
+                .ok_or(DatabaseError::IllegalPath(path_string))?;
             diesel::delete(files.filter(file_path.eq(path_str)))
                 .execute(&conn)
                 .expect(err_msg);
@@ -324,6 +357,8 @@ impl Database {
                 .execute(&conn)
                 .expect(err_msg);
         }
+
+        Ok(())
     }
 
     pub fn delete_files(&self, query: FileQuery) {
@@ -369,7 +404,7 @@ impl Database {
 
         match list.len() {
             0 => None,
-            1 => Some(list.first().unwrap().clone()),
+            1 => Some(list.first()?.clone()),
             _ => panic!("Expected 1 user to be found, but found multiple."),
         }
     }
@@ -432,7 +467,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let result = db_path.exists();
 
@@ -448,7 +483,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let time = Utc::now().naive_utc();
 
@@ -491,7 +526,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let path = "/home/user/Documents/test_game";
         let result = db.does_file_exist(path);
@@ -508,7 +543,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let time = Utc::now().naive_utc();
         let hash: [u8; 32] = rand::random();
@@ -565,7 +600,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let path = "/home/user/Documents/test_game/00.sav";
         let result = db.does_file_exist(path);
@@ -582,7 +617,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let time = Utc::now().naive_utc();
 
@@ -607,7 +642,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let username = "DarkFlameMaster";
         let result = db.does_user_exist(username);
@@ -624,7 +659,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let time = Utc::now().naive_utc();
 
@@ -681,7 +716,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let time = Utc::now().naive_utc();
 
@@ -732,7 +767,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let time = Utc::now().naive_utc();
         let mut uuid_buf = Uuid::encode_buffer();
@@ -783,7 +818,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let query = SaveQuery::new().with_friendly_name("not_in_db");
         let option = db.get_save(query);
@@ -802,7 +837,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let time = Utc::now().naive_utc();
 
@@ -872,7 +907,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let query = SaveQuery::new().with_user_id(1);
         let saves = db.get_saves(query);
@@ -891,7 +926,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let time = Utc::now().naive_utc();
 
@@ -959,7 +994,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let save_list = db.get_all_saves();
 
@@ -978,7 +1013,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let time = Utc::now().naive_utc();
 
@@ -1085,7 +1120,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let time = Utc::now().naive_utc();
         let hash: [u8; 32] = rand::random();
@@ -1149,7 +1184,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let hash: [u8; 32] = rand::random();
         let query = FileQuery::new().with_hash(&hash);
@@ -1169,7 +1204,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let time = Utc::now().naive_utc();
         let hash: [u8; 32] = rand::random();
@@ -1250,7 +1285,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let query = FileQuery::new().with_save_id(1);
         let files = db.get_files(query);
@@ -1269,7 +1304,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let time = Utc::now().naive_utc();
         let hash: [u8; 32] = rand::random();
@@ -1350,7 +1385,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let file_list = db.get_all_files();
 
@@ -1369,7 +1404,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let time = Utc::now().naive_utc();
         let hash: [u8; 32] = rand::random();
@@ -1489,7 +1524,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let time = Utc::now().naive_utc();
 
@@ -1523,7 +1558,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let query = UserQuery::new().with_username("nonexistent_username");
         let option = db.get_user(query);
@@ -1542,7 +1577,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let time = Utc::now().naive_utc();
 
@@ -1592,7 +1627,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let user_list = db.get_all_users();
 
@@ -1611,7 +1646,7 @@ mod tests {
         let tmp_dir = test_dir.path();
 
         let db_path: PathBuf = [tmp_dir, &PathBuf::from("test.db")].iter().collect();
-        let db = Database::new(&db_path);
+        let db = Database::new(&db_path).unwrap();
 
         let time = Utc::now().naive_utc();
 
