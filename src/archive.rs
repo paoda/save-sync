@@ -19,7 +19,7 @@ pub enum ArchiveError {
     #[error("Unable to determine the file / path name of {0}")]
     UnknownFileName(String),
     #[error("Unable to obtain reference to the global static config")]
-    UnaccessableConfig,
+    InaccessibleConfig,
 }
 
 #[derive(Debug, Default)]
@@ -42,7 +42,7 @@ impl Archive {
         use std::io::Read;
 
         let path = path.as_ref();
-        let config = Config::static_config().map_err(|_| ArchiveError::UnaccessableConfig)?;
+        let config = Config::static_config().map_err(|_| ArchiveError::InaccessibleConfig)?;
         let seed = config.xxhash_seed as u64;
 
         // If hasher implements Writer we can use std::io::copy
