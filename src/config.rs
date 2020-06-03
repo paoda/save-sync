@@ -10,6 +10,7 @@ lazy_static! {
     static ref CONFIG: RwLock<Config> = RwLock::new(Config::default());
 }
 
+/// Possible configuration errors.
 #[derive(Error, Debug)]
 pub enum ConfigError {
     #[error(transparent)]
@@ -32,6 +33,25 @@ pub enum ConfigError {
     UnknownPathParent(String),
 }
 
+/// Represents a user's specific configuration of save-sync.
+///
+/// # Examples
+
+/// ### Reference to global config
+/// ```
+/// pub use save_sync::config::Config;
+///
+/// let config = Config::static_config().unwrap();
+/// assert_eq!(&config.local_username, "Default");
+/// ```
+///
+/// ### Clone of global config
+/// ```
+/// pub use save_sync::config::Config;
+/// let config = COnfig::clone_config().unwrap();
+/// assert_eq!(config.local_username, "Default");
+/// ```
+
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub db_location: PathBuf,
@@ -41,6 +61,7 @@ pub struct Config {
 }
 
 impl Default for Config {
+    /// Creates a Config with default options.
     fn default() -> Config {
         let data_location = Self::get_default_data_path();
         let db_location = data_location.join("saves.db");
@@ -55,6 +76,27 @@ impl Default for Config {
 }
 
 impl<'a> Config {
+    /// Replaces an old config with a new config;
+    ///
+    /// ```
+    /// # use std::path::PathBuf;
+    /// use save_sync::config::Config;
+    ///
+    /// let new_config = Config {
+    ///     db_location: PathBuf::from("/some/where"),
+    ///     data_location: PathBuf::from("/some/where/else"),
+    ///     xxhash_seed: 11037,
+    ///     local_username: "UniqueUsername".to_string(),
+    /// };
+    ///
+    /// Config::update(new_config.clone()).unwrap();
+    ///
+    /// let default_config = Config::default();
+    /// let global_config = Config::static_config().unwrap();
+    ///
+    /// assert_ne!(default_config, *global_config);
+    /// assert_eq!(new_config, *global_config);
+    /// ```
     pub fn update(config: Config) -> Result<(), ConfigError> {
         let mut w = CONFIG.write()?;
         *w = config;
