@@ -9,11 +9,11 @@ edition = "2018"
 [dependencies]
 byteorder = "1.3.4"
 chrono = "0.4.11"
-diesel = { version = "1.4.4", features = ["sqlite", "chrono", "r2d2"] }
+diesel = { version = "1.4.5", features = ["sqlite", "chrono", "r2d2"] }
 diesel_migrations = "1.4.0"
 directories = "2.0.2"
 lazy_static = "1.4.0"
-libsqlite3-sys = { version = "0.17.3", features = ["bundled"] }
+libsqlite3-sys = { version = "0.18.0", features = ["bundled"] }
 serde = { version = "1.0.111", features = ["serde_derive"] }
 tar = "0.4.28"
 toml = "0.5.6"
@@ -30,4 +30,4 @@ default-members = ["cli", "server"]
 rand = "0.7.3"
 dotenv = "0.15.0"
 tempfile = "3.1.0"
-uuid = { version= "0.8.1", features = ["v4"] } 
+uuid = { version= "0.8.1", features = ["v4"] }
