@@ -48,7 +48,7 @@ pub enum ConfigError {
 /// ### Clone of global config
 /// ```
 /// pub use save_sync::config::Config;
-/// let config = COnfig::clone_config().unwrap();
+/// let config = Config::clone_config().unwrap();
 /// assert_eq!(config.local_username, "Default");
 /// ```
 
