@@ -179,7 +179,7 @@ impl Archive {
             tracked_hash_map.insert(file.file_path.clone(), file.file_hash.clone());
 
             // if current tracked file does not match any on disk
-            if !current.iter().any(|path| file == *path) {
+            if !current.iter().any(|path| file == **path) {
                 result.push(SaveUpdate {
                     change: Type::Missing,
                     path: PathBuf::from(file.file_path),
