@@ -7,27 +7,27 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-byteorder = "1.3.4"
-chrono = "0.4.11"
-diesel = { version = "1.4.5", features = ["sqlite", "chrono", "r2d2"] }
-diesel_migrations = "1.4.0"
-directories = "2.0.2"
-lazy_static = "1.4.0"
-libsqlite3-sys = { version = "0.18.0", features = ["bundled"] }
-serde = { version = "1.0.111", features = ["serde_derive"] }
-tar = "0.4.28"
-toml = "0.5.6"
-twox-hash = "1.5.0"
-uuid = { version = "0.8.1", features = ["v4"] }
-zstd = "0.5.2"
-thiserror = "1.0.19"
+byteorder = "1.3"
+chrono = "0.4"
+diesel = { version = "1.4", features = ["sqlite", "chrono", "r2d2"] }
+diesel_migrations = "1.4"
+directories = "3.0"
+lazy_static = "1.4"
+libsqlite3-sys = { version = "0.18", features = ["bundled"] }
+serde = { version = "1.0", features = ["serde_derive"] }
+tar = "0.4"
+toml = "0.5"
+twox-hash = "1.5"
+uuid = { version = "0.8", features = ["v4"] }
+zstd = "0.5"
+thiserror = "1.0"
 
 [workspace]
 members = ["cli", "server"]
 default-members = ["cli", "server"]
 
 [dev-dependencies]
-rand = "0.7.3"
-dotenv = "0.15.0"
-tempfile = "3.1.0"
-uuid = { version= "0.8.1", features = ["v4"] }
+rand = "0.7"
+dotenv = "0.15"
+tempfile = "3.1"
+uuid = { version = "0.8", features = ["v4"] }
